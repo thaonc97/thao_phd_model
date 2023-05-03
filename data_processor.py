@@ -65,6 +65,18 @@ def construct_v(depot,tasks): # for flow model
     vs.append(sink)
     return vs
 
+def cal_capacity(edge_jobs,edge_travels,node_idx_mapper,tasks):
+    capac = {}
+    for edge in edge_jobs:
+        pu_node = edge[0]
+        task_idx = node_idx_mapper[pu_node].task_idx
+        cur_task = [task for task in tasks if task.index == task_idx][0]
+        cur_capac = cur_task.n
+        capac[edge] = cur_capac
+    for edge in edge_travels:
+        capac[edge] = 1
+    return capac
+
 def update_connection_flow(v_prime): #for flow model
     """
     Note that v_prime must have indicies already
@@ -104,18 +116,27 @@ def process_vrp_sumofcosts(data):
     v_prime = construct_v_prime(depot,tasks)
     add_node_index(v_prime)
     v_prime = update_connection(v_prime)
-    node_idx_mapper = {node.index: node for node in v_prime}
-    c = create_cost_dict(v_prime,node_idx_mapper)
     e_prime = construct_edges(v_prime)
     return v_prime, e_prime
 
 
-def process_flow_sumofcost(data):
+def process_flow(data):
     depot, tasks = data
     vs = construct_v(depot,tasks)
     add_node_index(vs)
     vs = update_connection_flow(vs)
-    node_idx_mapper = {node.index: node for node in vs}
-    c = create_cost_dict(vs,node_idx_mapper)
     es = construct_edges(vs)
+    return vs,es
 
+
+def process_vrp_makespan(data):
+    depot, tasks = data
+    v_prime = construct_v_prime(depot, tasks)
+    sink = copy.deepcopy(depot)
+    sink.task_idx = tasks[-1].index + 1
+    sink.node_type = 3
+    v_prime.append(sink)
+    add_node_index(v_prime)
+    v_prime = update_connection(v_prime)
+    e_prime = construct_edges(v_prime)
+    return v_prime, e_prime

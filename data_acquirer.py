@@ -26,11 +26,12 @@ DATA_GETTER ={
      'csv': _get_data_from_csv
 }
 
-def get_data(path, file_type = 'csv'):
+def get_data(file_name, file_type = 'csv'):
     """
     
     """
-    depot, tasks = DATA_GETTER[file_type](path)
+    data_path = f'{cfg.DATA_PATH}{file_name}.{file_type}'
+    depot, tasks = DATA_GETTER[file_type](data_path)
     return depot,tasks
 
 

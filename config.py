@@ -7,10 +7,13 @@ NODE_TYPE = {
 
 PATH_COLOR = {i: f'C{i}' for i in range(10)}
 
+DATA_PATH = 'data/'
 RND_SEED = 5
 
 #SOLVER config
 SOLVE_GAP = 0.1
 SOLVE_TIME = 3600
+LOG_OUTPUT = True
+EXPORT_MODEL = True
 
 BIG_M = 10**6
