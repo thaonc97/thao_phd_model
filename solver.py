@@ -1,27 +1,26 @@
 from docplex.mp.model import Model
 import numpy as np
 import pandas as pd
+import time
 
 import config as cfg
+import data_acquirer
 import data_processor
 from helpers import create_cost_dict
 
 
 def solve_vrp_sumofcosts(data,total_robots):
-    depot, tasks = data
-    v_prime,e_prime = data_processor.process_vrp_sumofcosts(data)
+    depot, tasks,v_prime, e_prime = data.unpack()
     solve_result = _cplex_solve_vrp_sumofcosts(total_robots,tasks,v_prime, e_prime)
     return solve_result
 
 def solve_flow_makespan(data,total_robots):
-    depot, tasks = data
-    nodes, edges = data_processor.process_flow(data)
+    depot, tasks,nodes, edges = data.unpack()
     solve_result = _cplex_solve_flow_makespan(total_robots, tasks, nodes, edges)
     return solve_result
 
 def solve_vrp_makespan(data, total_robots):
-    depot, tasks = data
-    v_prime,e_prime = data_processor.process_vrp_sumofcosts(data)
+    depot, tasks,v_prime, e_prime = data.unpack()
     solve_result = _cplex_solve_vrp_makespan(total_robots,tasks,v_prime, e_prime)
     return solve_result
 
@@ -96,7 +95,6 @@ def _cplex_solve_flow_makespan(total_robots,
 
     model = Model("PDPCR Flow Based Makespan")
     f= model.integer_var_dict(uv_idx, name = 'f')
-    # y = model.continuous_var_dict(uv_idx,lb =0, name = 'y')
     z = model.continuous_var_dict(u_idx,lb = 0, name = 'z')
     x = model.binary_var_dict(uv_idx, name = 'x')
 
@@ -106,6 +104,7 @@ def _cplex_solve_flow_makespan(total_robots,
     model.add_constraints(f[u,v] == capac[(u,v)] for (u,v) in edge_jobs) #18
     model.add_constraint(z[0] == 0) #19
     model.add_constraints(z[v] == z[u] + c[u][v] for (u,v) in edge_jobs) #20
+    model.add_constraints(x[u,v] == 1 for (u,v) in edge_jobs)
     model.add_constraints(M*x[u,v] >= f[u,v] for (u,v) in edge_travels)
     model.add_constraints(f[u,v] >= x[u,v] for (u,v) in edge_travels)
     indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u]  +c[u][v]) for (u,v) in edge_travels] #21
@@ -182,13 +181,51 @@ def _cplex_solve_vrp_makespan(total_robots,
     
     return solve_info
 
+def _cplex_solve_vrp_ver2(total_robots,expanded_jobs, nodes, edges):
+    """
+    In this model, the variable associated with pickup-delivery edge is emitted.
+    """
+    I = total_robots
+    JP =  expanded_jobs
+    i_idx = [i.index for i in JP]
+    ij_idx = [(i.index, j.index) for i in JP for j in JP if i.index != j.index]
+
+    model = Model("VRP ver 2 sum of costs")
+    x= model.binary_var_dict(ij_idx, name = 'x')
+    y = model.continuous_var_dict(i_idx,lb =0, name = 'y')
+    z = model.continuous_var_dict(i_idx,lb = 0, name = 'z')
+    
+    model.add_constraint(model.sum(x[i,0] for i in i_idx) == model.sum(x[j,0] for j in i_idx))
+    model.add_constraint(model.sum(x[i,0] for i in i_idx) <= I)
+    model.add_constraint(model.sum(x[i,j] for j in i_idx) == 1 for i in i_idx)
+    model.add_constraint(model.sum(x[i,j] for i in i_idx) == 1 for j in i_idx)
+    SEC = [model.indicator_constraint(x[i,j],z[j] == z[i] + c_travel[i][j] +c_operate[i] +y[j]) for i in i_idx for j in i_idx if i!=j]
+    model.add_indicator_constraints(SEC)
+    #TODO update sinchronization constraints
+    model.minimize(model.sum(c_travel[i][j]*x[i,j] for i in i_idx for j in i_idx if i!=j) + model.sum(y[i] for i in i_idx))
+    #TODO
+    model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+    model.time_limit = cfg.SOLVE_TIME
+    sol = model.solve(log_output = cfg.LOG_OUTPUT)
+    
+    solved_gap = model.solve_details.mip_relative_gap
+    solve_info = {
+        'sol':sol,
+        'x':x,
+        'y':y,
+        'z':z,
+        'gap':solved_gap
+    }
+    
+    return solve_info
+
 SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
 }
 
-def solve_pdpcr(data, total_robots, method):
+def solve_pdpcr(processed_data, total_robots, method :int):
     """
     SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
@@ -197,5 +234,39 @@ def solve_pdpcr(data, total_robots, method):
     }
     """
     solve_method = SOLVE_METHOD[method]
-    solve_result = solve_method(data, total_robots)
+    solve_result = solve_method(processed_data, total_robots)
     return solve_result
+
+class SolvedInstance():
+    
+    def __init__(self, seed, data, total_robots, sol_result, solve_time,instance_num):
+        self.seed = seed
+        self.data = data
+        self.total_robots = total_robots
+        self.solve_time = solve_time
+        self.gap = self._get_gap(sol_result)
+        self.instance_num = instance_num
+        
+    def _get_gap(self, solve_result):
+        return solve_result['gap']
+
+def mass_solve(total_tasks,total_robots,method,seed =1, total_instances = 5, log_output = True):
+    solved_instances = []
+    for instance_num in range(total_instances):
+        raw = data_acquirer.gen_data(total_robots, total_tasks, False)
+        processed_data = data_processor.process(raw, method) 
+        try:
+            tik = time.time()
+            solved_result = solve_pdpcr(processed_data, total_robots, method)
+            tok = time.time()
+            solved_time = tok - tik
+        except:
+            print(f"There is problem solving {total_tasks} tasks, {total_robots} robots,seed{seed}")
+            continue
+        try:
+            solved_instance = SolvedInstance(seed, processed_data, total_robots, solved_result,solved_time, instance_num)
+            solved_instances.append(solved_instance)
+        except Exception as e:
+            raise e
+        
+    return solved_instances

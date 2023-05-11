@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 import config as cfg
-from problem_variables import Task, Node
+from problem_variables import Task, Node, Raw
 
 
 seed_num =  cfg.RND_SEED
@@ -20,7 +20,8 @@ def _get_data_from_csv(path):
         to_remove = ('x_pickup', 'y_pickup', 'x_dest', 'y_dest')
         [task.pop(field) for field in to_remove]
     tasks = [Task(**data) for data in data_dict]
-    return depot, tasks
+    raw = Raw(depot, tasks)
+    return raw
 
 DATA_GETTER ={
      'csv': _get_data_from_csv
@@ -31,8 +32,8 @@ def get_data(file_name, file_type = 'csv'):
     
     """
     data_path = f'{cfg.DATA_PATH}{file_name}.{file_type}'
-    depot, tasks = DATA_GETTER[file_type](data_path)
-    return depot,tasks
+    raw = DATA_GETTER[file_type](data_path)
+    return raw
 
 
 def gen_tasks(num_tasks, max_robots, coor_range = 500, no_delivery = False):
@@ -52,7 +53,6 @@ def gen_tasks(num_tasks, max_robots, coor_range = 500, no_delivery = False):
             total_robots_required = 1
         cur_tasks = Task(pickup_coor, dest_coor, total_robots_required, i)
         tasks.append(cur_tasks)
-    
     return tasks
 
 def gen_depot(coor_range = 500):
@@ -60,7 +60,8 @@ def gen_depot(coor_range = 500):
     depot = Node(coor, 0, 0)
     return depot
 
-def gen_data(total_robots = 5,total_tasks = 40, no_delivery = False):
+def gen_data(total_robots,total_tasks, no_delivery = False):
         depot = gen_depot()
         tasks = gen_tasks(total_tasks, total_robots, no_delivery = no_delivery)
-        return depot, tasks
+        raw = Raw(depot, tasks)
+        return raw

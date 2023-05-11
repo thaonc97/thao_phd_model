@@ -30,3 +30,54 @@ class Task:
         expanded_pickups = [Node(self.pickup_coor,self.index, 1) for _ in range(self.n)]
         expanded_dests = [Node(self.dest_coor,self.index, 2) for _ in range(self.n)]
         return (expanded_pickups, expanded_dests)
+    
+class Raw:
+    def __init__(self,depot, tasks):
+        self.depot = depot
+        self.tasks = tasks
+    
+    def unpack(self):
+        depot = self.depot
+        tasks = self.tasks
+        
+        return depot, tasks
+
+class Processed(Raw):
+    def __init__(self, depot,tasks,nodes, edges):
+        self.depot = depot
+        self.tasks = tasks
+        self.nodes = nodes
+        self.edges = edges
+
+    def set_nodes(self, nodes):
+        self.node = nodes
+
+    def set_edges(self, edges):
+        self.edges = edges
+
+    def unpack(self):
+        depot = self.depot
+        tasks = self.tasks
+        nodes = self.nodes
+        edges = self.edges
+        return depot, tasks, nodes, edges
+    
+
+class SolvedInstance():
+    
+    def __init__(self, seed, tasks, total_robots, v_prime, e_prime, sol_result, solve_time,instance_num):
+        self.seed = seed
+        self.tasks = tasks
+        self.total_robots = total_robots
+        self.num_tasks = len(tasks)
+        self.num_nodes = len(v_prime)
+        self.edges = e_prime
+        self.solve_time = solve_time
+        self.gap = self._get_gap(sol_result)
+        self.instance_num = instance_num
+        
+    def _get_solve_time(self,sol_result):
+        pass
+
+    def _get_gap(self, solve_result):
+        return solve_result['gap']

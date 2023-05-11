@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 from helpers import create_cost_dict
-from problem_variables import Node, Task
+from problem_variables import Node, Task, Processed
 
 
 def construct_v_prime(depot,tasks):
@@ -110,27 +110,78 @@ def construct_edge_jobs(edges,node_idx_mapper):  #for flow based model
             edge_jobs +=[(node,to_node) for to_node in edges[node]]
     return edge_jobs
 
+class RawProcessor:
+    def __init__(self,raw):
+        self.raw = raw
 
-def process_vrp_sumofcosts(data):
-    depot, tasks = data
+    def process_vrp_sumofcosts(self):
+        depot, tasks = self._unpack_raw()
+        v_prime = construct_v_prime(depot,tasks)
+        add_node_index(v_prime)
+        v_prime = update_connection(v_prime)
+        e_prime = construct_edges(v_prime)
+        processed_data = self._pack_processed(depot,tasks,v_prime,e_prime)
+        return processed_data
+
+    def process_flow(self):
+        depot, tasks = self._unpack_raw()
+        vs = construct_v(depot,tasks)
+        add_node_index(vs)
+        vs = update_connection_flow(vs)
+        es = construct_edges(vs)
+        processed_data = self._pack_processed(depot,tasks,vs,es)
+        return processed_data
+
+    def process_vrp_makespan(self):
+        depot, tasks = self._unpack_raw()
+        v_prime = construct_v_prime(depot, tasks)
+        sink = copy.deepcopy(depot)
+        sink.task_idx = tasks[-1].index + 1
+        sink.node_type = 3
+        v_prime.append(sink)
+        add_node_index(v_prime)
+        v_prime = update_connection(v_prime)
+        e_prime = construct_edges(v_prime)
+        processed_data = self._pack_processed(depot,tasks,v_prime,e_prime)
+        return processed_data
+
+
+    def _unpack_raw(self):
+        raw = self.raw
+        depot = raw.depot
+        tasks = raw.tasks
+        return depot, tasks
+    
+    def _pack_processed(self,depot, tasks, v_prime, e_prime):
+        self.processed = Processed(depot,tasks,v_prime,e_prime)
+        return self.processed
+
+
+def process_vrp_sumofcosts(raw):
+    depot = raw.depot
+    tasks = raw.tasks
     v_prime = construct_v_prime(depot,tasks)
     add_node_index(v_prime)
     v_prime = update_connection(v_prime)
     e_prime = construct_edges(v_prime)
-    return v_prime, e_prime
+    processed_data = Processed(depot,tasks,v_prime,e_prime)
+    return processed_data
 
 
-def process_flow(data):
-    depot, tasks = data
+def process_flow(raw):
+    depot = raw.depot
+    tasks = raw.tasks
     vs = construct_v(depot,tasks)
     add_node_index(vs)
     vs = update_connection_flow(vs)
     es = construct_edges(vs)
-    return vs,es
+    processed_data = Processed(depot,tasks,vs,es)
+    return processed_data
 
 
-def process_vrp_makespan(data):
-    depot, tasks = data
+def process_vrp_makespan(raw):
+    depot = raw.depot
+    tasks = raw.tasks
     v_prime = construct_v_prime(depot, tasks)
     sink = copy.deepcopy(depot)
     sink.task_idx = tasks[-1].index + 1
@@ -139,4 +190,18 @@ def process_vrp_makespan(data):
     add_node_index(v_prime)
     v_prime = update_connection(v_prime)
     e_prime = construct_edges(v_prime)
-    return v_prime, e_prime
+    processed_data = Processed(depot,tasks,v_prime,e_prime)
+    return processed_data
+
+
+
+PROCESS_METHOD ={
+    1: process_vrp_sumofcosts,
+    2: process_flow,
+    3: process_vrp_makespan,
+}
+
+def process(raw, method):
+    process_method = PROCESS_METHOD[method]
+    processed_data = process_method(raw)
+    return processed_data
