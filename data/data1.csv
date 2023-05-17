@@ -1,5 +1,5 @@
-index,x_pickup,y_pickup,x_dest,y_dest,robots_required
-0,0,0,0,0,0
-1,0,100,0,100,1
-2,100,100,100,100,1
-3,100,0,100,0,1
+index,x_pickup,y_pickup,x_dest,y_dest,robots_required,process_time
+0,0,0,0,0,0,0
+1,0,100,0,100,1,0
+2,100,100,100,100,1,0
+3,100,0,100,0,1,0

@@ -1,3 +1,5 @@
+import copy
+
 import config as cfg
 
 class Node:
@@ -11,9 +13,10 @@ class Node:
 
 
 class Task:
-    def __init__(self,pickup_coor, dest_coor,robots_required:int,index):
+    def __init__(self,pickup_coor, dest_coor, process_time: int, robots_required:int,index):
         self.pickup_coor = pickup_coor
         self.dest_coor = dest_coor
+        self.process_time = process_time
         self.n = robots_required
         if index is not None:
             self.index = index
@@ -32,7 +35,7 @@ class Task:
         return (expanded_pickups, expanded_dests)
     
 class Raw:
-    def __init__(self,depot, tasks):
+    def __init__(self,depot, tasks :list[Task]):
         self.depot = depot
         self.tasks = tasks
     
@@ -43,7 +46,7 @@ class Raw:
         return depot, tasks
 
 class Processed(Raw):
-    def __init__(self, depot,tasks,nodes, edges):
+    def __init__(self, depot,tasks :list[Task],nodes, edges):
         self.depot = depot
         self.tasks = tasks
         self.nodes = nodes

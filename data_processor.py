@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 from helpers import create_cost_dict
-from problem_variables import Node, Task, Processed
+from problem_variables import Node, Task, Processed,Raw
 
 
 def construct_v_prime(depot,tasks):
@@ -110,52 +110,20 @@ def construct_edge_jobs(edges,node_idx_mapper):  #for flow based model
             edge_jobs +=[(node,to_node) for to_node in edges[node]]
     return edge_jobs
 
-class RawProcessor:
-    def __init__(self,raw):
-        self.raw = raw
-
-    def process_vrp_sumofcosts(self):
-        depot, tasks = self._unpack_raw()
-        v_prime = construct_v_prime(depot,tasks)
-        add_node_index(v_prime)
-        v_prime = update_connection(v_prime)
-        e_prime = construct_edges(v_prime)
-        processed_data = self._pack_processed(depot,tasks,v_prime,e_prime)
-        return processed_data
-
-    def process_flow(self):
-        depot, tasks = self._unpack_raw()
-        vs = construct_v(depot,tasks)
-        add_node_index(vs)
-        vs = update_connection_flow(vs)
-        es = construct_edges(vs)
-        processed_data = self._pack_processed(depot,tasks,vs,es)
-        return processed_data
-
-    def process_vrp_makespan(self):
-        depot, tasks = self._unpack_raw()
-        v_prime = construct_v_prime(depot, tasks)
-        sink = copy.deepcopy(depot)
-        sink.task_idx = tasks[-1].index + 1
-        sink.node_type = 3
-        v_prime.append(sink)
-        add_node_index(v_prime)
-        v_prime = update_connection(v_prime)
-        e_prime = construct_edges(v_prime)
-        processed_data = self._pack_processed(depot,tasks,v_prime,e_prime)
-        return processed_data
-
-
-    def _unpack_raw(self):
-        raw = self.raw
-        depot = raw.depot
-        tasks = raw.tasks
-        return depot, tasks
-    
-    def _pack_processed(self,depot, tasks, v_prime, e_prime):
-        self.processed = Processed(depot,tasks,v_prime,e_prime)
-        return self.processed
-
+#VRP ver 2
+def expand_tasks(tasks: list[Task]):
+    expanded_tasks = []
+    i = min([task.index for task in tasks])
+    for task in tasks:
+        for _ in range(task.n):
+            expanded_cur_task = copy.deepcopy(task)
+            expanded_cur_task.is_expand = True
+            expanded_cur_task.origin_idx = task.index
+            expanded_cur_task.n = 1
+            expanded_cur_task.index = i
+            i = i + 1
+            expanded_tasks.append(expanded_cur_task)
+    return expanded_tasks
 
 def process_vrp_sumofcosts(raw):
     depot = raw.depot
@@ -167,7 +135,6 @@ def process_vrp_sumofcosts(raw):
     processed_data = Processed(depot,tasks,v_prime,e_prime)
     return processed_data
 
-
 def process_flow(raw):
     depot = raw.depot
     tasks = raw.tasks
@@ -177,7 +144,6 @@ def process_flow(raw):
     es = construct_edges(vs)
     processed_data = Processed(depot,tasks,vs,es)
     return processed_data
-
 
 def process_vrp_makespan(raw):
     depot = raw.depot
@@ -193,12 +159,18 @@ def process_vrp_makespan(raw):
     processed_data = Processed(depot,tasks,v_prime,e_prime)
     return processed_data
 
-
+def process_vrp_ver2(raw):
+    depot = raw.depot
+    tasks = raw.tasks
+    expanded_tasks = expand_tasks(tasks)
+    processed_data = Processed(depot, expanded_tasks, None, None)
+    return processed_data
 
 PROCESS_METHOD ={
     1: process_vrp_sumofcosts,
     2: process_flow,
     3: process_vrp_makespan,
+    4: process_vrp_ver2
 }
 
 def process(raw, method):

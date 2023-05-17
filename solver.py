@@ -6,7 +6,7 @@ import time
 import config as cfg
 import data_acquirer
 import data_processor
-from helpers import create_cost_dict
+import helpers
 
 
 def solve_vrp_sumofcosts(data,total_robots):
@@ -24,6 +24,12 @@ def solve_vrp_makespan(data, total_robots):
     solve_result = _cplex_solve_vrp_makespan(total_robots,tasks,v_prime, e_prime)
     return solve_result
 
+def solve_vrp_ver2(data,total_robots):
+    depot = data.depot
+    expanded_tasks = data.tasks
+    solve_result = _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks)
+    return solve_result
+
 def _cplex_solve_vrp_sumofcosts(total_robots,
                 tasks,
                 v_prime, 
@@ -39,7 +45,7 @@ def _cplex_solve_vrp_sumofcosts(total_robots,
     Dt = {task.index:[node.index for node in v_prime if (node.task_idx ==task.index and node.node_type ==2)] for task in tasks}
 
     node_idx_mapper = {node.index: node for node in v_prime}
-    c = create_cost_dict(v_prime,node_idx_mapper)
+    c = helpers.create_cost_dict(v_prime,node_idx_mapper)
 
     model = Model("ThaoModel")
     x= model.binary_var_dict(ij_idx, name = 'x')
@@ -88,7 +94,7 @@ def _cplex_solve_flow_makespan(total_robots,
     M = total_robots
     
     node_idx_mapper = {node.index: node for node in nodes}
-    c = create_cost_dict(nodes,node_idx_mapper)
+    c = helpers.create_cost_dict(nodes,node_idx_mapper)
     edge_travels = data_processor.construct_edge_travels(edges, node_idx_mapper)
     edge_jobs = data_processor.construct_edge_jobs(edges, node_idx_mapper)
     capac = data_processor.cal_capacity(edge_jobs,edge_travels, node_idx_mapper,tasks)
@@ -145,7 +151,7 @@ def _cplex_solve_vrp_makespan(total_robots,
     
     sink_idx = len(v_prime) -1
     node_idx_mapper = {node.index: node for node in v_prime}
-    c = create_cost_dict(v_prime,node_idx_mapper)
+    c = helpers.create_cost_dict(v_prime,node_idx_mapper)
 
     model = Model("ThaoModel")
     x= model.binary_var_dict(ij_idx, name = 'x')
@@ -181,33 +187,40 @@ def _cplex_solve_vrp_makespan(total_robots,
     
     return solve_info
 
-def _cplex_solve_vrp_ver2(total_robots,expanded_jobs, nodes, edges):
+def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
     """
     In this model, the variable associated with pickup-delivery edge is emitted.
     """
     I = total_robots
-    JP =  expanded_jobs
-    i_idx = [i.index for i in JP]
+    JP =  [depot] + expanded_tasks
+    i0_idx = [i.index for i in JP]
+    i_idx = [i.index for i in JP if i.index != 0]
     ij_idx = [(i.index, j.index) for i in JP for j in JP if i.index != j.index]
 
     model = Model("VRP ver 2 sum of costs")
     x= model.binary_var_dict(ij_idx, name = 'x')
-    y = model.continuous_var_dict(i_idx,lb =0, name = 'y')
-    z = model.continuous_var_dict(i_idx,lb = 0, name = 'z')
-    
-    model.add_constraint(model.sum(x[i,0] for i in i_idx) == model.sum(x[j,0] for j in i_idx))
-    model.add_constraint(model.sum(x[i,0] for i in i_idx) <= I)
-    model.add_constraint(model.sum(x[i,j] for j in i_idx) == 1 for i in i_idx)
-    model.add_constraint(model.sum(x[i,j] for i in i_idx) == 1 for j in i_idx)
-    SEC = [model.indicator_constraint(x[i,j],z[j] == z[i] + c_travel[i][j] +c_operate[i] +y[j]) for i in i_idx for j in i_idx if i!=j]
+    y = model.continuous_var_dict(i0_idx,lb =0, name = 'y')
+    z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
+
+    c_travel = helpers.create_task_dist_dict(depot, expanded_tasks)
+    c_operate = helpers.create_operate_dict(depot, expanded_tasks)
+    orig_task = helpers.create_expanded_original_task_mapper(expanded_tasks)
+
+    model.add_constraint(model.sum(x[0,i] for i in i_idx) == model.sum(x[j,0] for j in i_idx))
+    model.add_constraint(model.sum(x[i,0] for i in i_idx) == I)
+    model.add_constraints(model.sum(x[i,j] for j in i0_idx if j!= i) == 1 for i in i_idx)
+    model.add_constraints(model.sum(x[i,j] for i in i0_idx if i!= j) == 1 for j in i_idx)
+    SEC = [model.indicator_constraint(x[i,j],z[j] == z[i] + c_travel[i][j] +c_operate[i] +y[j]) for i in i0_idx for j in i_idx if i!=j]
     model.add_indicator_constraints(SEC)
-    #TODO update sinchronization constraints
-    model.minimize(model.sum(c_travel[i][j]*x[i,j] for i in i_idx for j in i_idx if i!=j) + model.sum(y[i] for i in i_idx))
-    #TODO
+    model.add_constraints(z[i] == z[j] for i in i_idx for j in i_idx  if orig_task[i] == orig_task[j])
+    model.minimize(model.sum(c_travel[i][j]*x[i,j] for i in i0_idx for j in i0_idx if i!=j) + model.sum(y[i] for i in i_idx))
+
     model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
     model.time_limit = cfg.SOLVE_TIME
+    if cfg.EXPORT_MODEL == True:
+        print(model.export_as_lp())
+        
     sol = model.solve(log_output = cfg.LOG_OUTPUT)
-    
     solved_gap = model.solve_details.mip_relative_gap
     solve_info = {
         'sol':sol,
@@ -223,6 +236,7 @@ SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
+    4: solve_vrp_ver2
 }
 
 def solve_pdpcr(processed_data, total_robots, method :int):
@@ -231,6 +245,7 @@ def solve_pdpcr(processed_data, total_robots, method :int):
     1: solve_vrp_sumofcosts,
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
+    4: solve_vrp_ver2
     }
     """
     solve_method = SOLVE_METHOD[method]

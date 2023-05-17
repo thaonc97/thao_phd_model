@@ -1,8 +1,12 @@
 import numpy as np
-
+from problem_variables import Task, Node
 
 def cal_dist(node1,node2):
     dist = np.linalg.norm(node1.coor - node2.coor)
+    return dist
+
+def cal_dist_task(task1, task2):
+    dist = np.linalg.norm(task1.dest_coor - task2.pickup_coor)
     return dist
 
 def create_cost_dict(connected_v_prime,node_idx_mapper):
@@ -15,3 +19,39 @@ def create_cost_dict(connected_v_prime,node_idx_mapper):
         }
         c[cur_idx] = dist
     return c
+
+def create_task_dist_dict(depot, tasks: list[Task]):
+    c = {}
+    depot_tasks = [depot] + tasks
+    for cur_task in depot_tasks:
+        dist = {
+            task.index: cal_dist_task(cur_task, task) for task in depot_tasks
+        }
+        c[cur_task.index] = dist
+
+    return c
+
+def create_operate_dict(depot, tasks: list[Task]):
+    c = {}
+    depot_idx = depot.index
+    c[depot_idx] = 0
+    for task in tasks:
+        c[task.index] = task.process_time
+    return c
+
+def create_original_task_mapper(expanded_tasks):
+    orig_expanded = {}
+    for task in expanded_tasks:
+        cur_orig_idx = task.origin_idx
+        cur_idx = task.index
+        if cur_orig_idx not in orig_expanded:
+            orig_expanded[cur_orig_idx] = [cur_idx]
+        else:
+            orig_expanded[cur_orig_idx].append(cur_idx)
+    return orig_expanded
+
+def create_expanded_original_task_mapper(exapnded_tasks):
+    orig_expanded = {
+        task.index: task.origin_idx for task in exapnded_tasks
+    }
+    return orig_expanded
