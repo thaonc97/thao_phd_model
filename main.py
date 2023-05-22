@@ -14,20 +14,21 @@ if __name__ == "__main__":
     1: solve_vrp_sumofcosts,
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
-    4: solve_vrp_ver2
+    4: solve_vrp_ver2,
+    5: solve_vrp_ver2_makespan
     }
     """
 
-    method = 4
+    method = 5
 
     total_robots = 3
-    random_data = True
+    random_data = False
 
     data_name = 'data4' #real data
     total_tasks = 15 # random data
     
     print(f'Solving for {total_robots} robots and {total_tasks}')
-    if method == 4:
+    if method == 4 or method == 5:
         is_depot_task = True
     else:
         is_depot_task = False
@@ -35,7 +36,7 @@ if __name__ == "__main__":
         raw = gen_data(total_robots, total_tasks, False, is_depot_task)
     else:
         raw = get_data(data_name,'csv', is_depot_task)
-    print(f'Solving for {total_robots} robots and {len(raw)} tasks')
+    print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
     processed_data = process(raw, method) 
     solve_result = solve_pdpcr(processed_data, total_robots, method)
 

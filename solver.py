@@ -30,6 +30,12 @@ def solve_vrp_ver2(data,total_robots):
     solve_result = _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks)
     return solve_result
 
+def solve_vrp_ver2_makespan(data,total_robots):
+    depot = data.depot
+    expanded_tasks = data.tasks
+    solve_result = _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks)
+    return solve_result
+
 def _cplex_solve_vrp_sumofcosts(total_robots,
                 tasks,
                 v_prime, 
@@ -232,11 +238,56 @@ def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
     
     return solve_info
 
+def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
+    """
+    In this model, the variable associated with pickup-delivery edge is emitted.
+    """
+    I = total_robots
+    JP =  [depot] + expanded_tasks
+    i0_idx = [i.index for i in JP]
+    i_idx = [i.index for i in JP if i.index != 0]
+    ij_idx = [(i.index, j.index) for i in JP for j in JP if i.index != j.index]
+
+    model = Model("VRP ver 2 sum of costs")
+    x= model.binary_var_dict(ij_idx, name = 'x')
+    z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
+    c_max = model.continuous_var(0, name = "c_max")
+    c_travel = helpers.create_task_dist_dict(depot, expanded_tasks)
+    c_operate = helpers.create_operate_dict(depot, expanded_tasks)
+    orig_task = helpers.create_expanded_original_task_mapper(expanded_tasks)
+
+    model.add_constraint(model.sum(x[0,i] for i in i_idx) == model.sum(x[j,0] for j in i_idx))
+    model.add_constraint(model.sum(x[i,0] for i in i_idx) == I)
+    model.add_constraints(model.sum(x[i,j] for j in i0_idx if j!= i) == 1 for i in i_idx)
+    model.add_constraints(model.sum(x[i,j] for i in i0_idx if i!= j) == 1 for j in i_idx)
+    SEC = [model.indicator_constraint(x[i,j],z[j] <= z[i] + c_travel[i][j] +c_operate[i]) for i in i0_idx for j in i_idx if i!=j]
+    model.add_indicator_constraints(SEC)
+    model.add_constraints(z[i] == z[j] for i in i_idx for j in i_idx  if orig_task[i] == orig_task[j])
+    model.add_constraints(z[i] +c_operate[i] + c_travel[i][0] <= c_max for i in i_idx)
+    model.minimize(c_max)
+
+    model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+    model.time_limit = cfg.SOLVE_TIME
+    if cfg.EXPORT_MODEL == True:
+        print(model.export_as_lp())
+    print('Start solving vrp-based model for makespan obj.function using CPLEX')
+    sol = model.solve(log_output = cfg.LOG_OUTPUT)
+    solved_gap = model.solve_details.mip_relative_gap
+    solve_info = {
+        'sol':sol,
+        'x':x,
+        'z':z,
+        'gap':solved_gap
+    }
+    
+    return solve_info
+
 SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
-    4: solve_vrp_ver2
+    4: solve_vrp_ver2,
+    5: solve_vrp_ver2_makespan
 }
 
 def solve_pdpcr(processed_data, total_robots, method :int):
@@ -265,16 +316,22 @@ class SolvedInstance():
     def _get_gap(self, solve_result):
         return solve_result['gap']
 
+
 def mass_solve(total_tasks,total_robots,method,seed =1, total_instances = 5, log_output = True):
     solved_instances = []
     for instance_num in range(total_instances):
-        raw = data_acquirer.gen_data(total_robots, total_tasks, False)
+        depot_as_task = False
+        if method == 4 or method ==5:
+            depot_as_task = True
+        raw = data_acquirer.gen_data(total_robots, total_tasks, False,depot_as_task)
         processed_data = data_processor.process(raw, method) 
         try:
             tik = time.time()
             solved_result = solve_pdpcr(processed_data, total_robots, method)
             tok = time.time()
             solved_time = tok - tik
+            if solved_result['sol'] is None:
+                print("No solution!")
         except:
             print(f"There is problem solving {total_tasks} tasks, {total_robots} robots,seed{seed}")
             continue

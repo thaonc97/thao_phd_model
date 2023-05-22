@@ -170,7 +170,8 @@ PROCESS_METHOD ={
     1: process_vrp_sumofcosts,
     2: process_flow,
     3: process_vrp_makespan,
-    4: process_vrp_ver2
+    4: process_vrp_ver2,
+    5: process_vrp_ver2
 }
 
 def process(raw, method):
