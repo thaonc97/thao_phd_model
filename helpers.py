@@ -50,8 +50,19 @@ def create_original_task_mapper(expanded_tasks):
             orig_expanded[cur_orig_idx].append(cur_idx)
     return orig_expanded
 
-def create_expanded_original_task_mapper(exapnded_tasks):
+def create_expanded_original_task_mapper(expanded_tasks):
     orig_expanded = {
-        task.index: task.origin_idx for task in exapnded_tasks
+        task.index: task.origin_idx for task in expanded_tasks
     }
     return orig_expanded
+
+def cal_big_m(nodes):
+    node_idx_mapper = {node.index: node for node in nodes}
+    c = create_cost_dict(nodes,node_idx_mapper)
+    big_m = 0
+    for node in c:
+        try:
+            big_m += max(c[node].values())
+        except ValueError:
+            pass
+    return big_m

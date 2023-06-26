@@ -90,7 +90,7 @@ def _cplex_solve_vrp_sumofcosts(total_robots,
 def _cplex_solve_flow_makespan(total_robots,
                 tasks,
                 nodes, 
-                edges, 
+                edges,
                 ):
     
     j_idx = [task.index for task in tasks] #jobs
@@ -106,9 +106,12 @@ def _cplex_solve_flow_makespan(total_robots,
     capac = data_processor.cal_capacity(edge_jobs,edge_travels, node_idx_mapper,tasks)
 
     model = Model("PDPCR Flow Based Makespan")
-    f= model.integer_var_dict(uv_idx, name = 'f')
+    f= model.continuous_var_dict(uv_idx, name = 'f')
     z = model.continuous_var_dict(u_idx,lb = 0, name = 'z')
-    x = model.binary_var_dict(uv_idx, name = 'x')
+    if cfg.RELAXED:
+        x = model.continuous_var_dict(uv_idx,ub = 1, name = 'x')
+    else:
+        x = model.binary_var_dict(uv_idx, name = 'x')
 
     model.add_constraint(model.sum(f[0,v] for v in edges[0]) == total_robots) #14
     model.add_constraint(model.sum(f[u,sink_idx] for u in edges if sink_idx in edges[u]) == total_robots) #15
@@ -119,11 +122,16 @@ def _cplex_solve_flow_makespan(total_robots,
     model.add_constraints(x[u,v] == 1 for (u,v) in edge_jobs)
     model.add_constraints(M*x[u,v] >= f[u,v] for (u,v) in edge_travels)
     model.add_constraints(f[u,v] >= x[u,v] for (u,v) in edge_travels)
-    indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u]  +c[u][v]) for (u,v) in edge_travels] #21
-    model.add_indicator_constraints(indicator_SEC) 
-
+    if cfg.USE_INDICATOR:
+        indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u]  +c[u][v]) for (u,v) in edge_travels] #21
+        model.add_indicator_constraints(indicator_SEC) 
+    else:
+        # big_m = helpers.cal_big_m(nodes)
+        big_m = 10**6
+        model.add_constraints(z[v] + big_m*(1-x[u,v]) >= z[u] +c[u][v] for (u,v) in edge_travels)
     model.minimize(z[sink_idx])
     
+
     model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
     model.time_limit = cfg.SOLVE_TIME
     if cfg.EXPORT_MODEL == True:
@@ -204,7 +212,10 @@ def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
     ij_idx = [(i.index, j.index) for i in JP for j in JP if i.index != j.index]
 
     model = Model("VRP ver 2 sum of costs")
-    x= model.binary_var_dict(ij_idx, name = 'x')
+    if cfg.RELAXED:
+        x = model.continuous_var_dict(ij_idx,ub = 1, name = 'x')
+    else:
+        x = model.binary_var_dict(ij_idx, name = 'x')
     y = model.continuous_var_dict(i0_idx,lb =0, name = 'y')
     z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
 
@@ -216,8 +227,13 @@ def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
     model.add_constraint(model.sum(x[i,0] for i in i_idx) == I)
     model.add_constraints(model.sum(x[i,j] for j in i0_idx if j!= i) == 1 for i in i_idx)
     model.add_constraints(model.sum(x[i,j] for i in i0_idx if i!= j) == 1 for j in i_idx)
-    SEC = [model.indicator_constraint(x[i,j],z[j] == z[i] + c_travel[i][j] +c_operate[i] +y[j]) for i in i0_idx for j in i_idx if i!=j]
-    model.add_indicator_constraints(SEC)
+    if cfg.USE_INDICATOR:
+        SEC = [model.indicator_constraint(x[i,j],z[j] == z[i] + c_travel[i][j] +c_operate[i] +y[j]) for i in i0_idx for j in i_idx if i!=j]
+        model.add_indicator_constraints(SEC)
+    else:
+        big_m = 10**6
+        model.add_constraints(z[j] + big_m*(1-x[i,j]) >= z[i] + c_operate[i]  +c_travel[i][j] +y[j] for i in i0_idx for j in i_idx if i!=j)
+        model.add_constraints(z[j] - big_m*(1-x[i,j]) <= z[i] + c_operate[i]  +c_travel[i][j] +y[j] for i in i0_idx for j in i_idx if i!=j)
     model.add_constraints(z[i] == z[j] for i in i_idx for j in i_idx  if orig_task[i] == orig_task[j])
     model.minimize(model.sum(c_travel[i][j]*x[i,j] for i in i0_idx for j in i0_idx if i!=j) + model.sum(y[i] for i in i_idx))
 
@@ -244,11 +260,12 @@ def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
     """
     I = total_robots
     JP =  [depot] + expanded_tasks
+    sink_idx = max([task.index for task in expanded_tasks])
     i0_idx = [i.index for i in JP]
-    i_idx = [i.index for i in JP if i.index != 0]
+    i_idx = [i.index for i in JP if i.index != 0 if i.index!= sink_idx]
     ij_idx = [(i.index, j.index) for i in JP for j in JP if i.index != j.index]
-
-    model = Model("VRP ver 2 sum of costs")
+    
+    model = Model("VRP ver 2 makespan")
     x= model.binary_var_dict(ij_idx, name = 'x')
     z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
     c_max = model.continuous_var(0, name = "c_max")
@@ -256,14 +273,15 @@ def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
     c_operate = helpers.create_operate_dict(depot, expanded_tasks)
     orig_task = helpers.create_expanded_original_task_mapper(expanded_tasks)
 
-    model.add_constraint(model.sum(x[0,i] for i in i_idx) == model.sum(x[j,0] for j in i_idx))
-    model.add_constraint(model.sum(x[i,0] for i in i_idx) == I)
-    model.add_constraints(model.sum(x[i,j] for j in i0_idx if j!= i) == 1 for i in i_idx)
-    model.add_constraints(model.sum(x[i,j] for i in i0_idx if i!= j) == 1 for j in i_idx)
-    SEC = [model.indicator_constraint(x[i,j],z[j] <= z[i] + c_travel[i][j] +c_operate[i]) for i in i0_idx for j in i_idx if i!=j]
+    model.add_constraint(model.sum(x[0,i] for i in i_idx) == model.sum(x[j,sink_idx] for j in i_idx))
+    model.add_constraint(model.sum(x[0,i] for i in i_idx) == I)
+    model.add_constraints(model.sum(x[i,j] for j in i0_idx if j!= i if j!=0) == 1 for i in i_idx)
+    model.add_constraints(model.sum(x[i,j] for i in i0_idx if i!= j if i != sink_idx) == 1 for j in i_idx)
+    SEC = [model.indicator_constraint(x[i,j],z[j] >= z[i] + c_travel[i][j] +c_operate[i]) for i in i0_idx if i!=sink_idx for j in i0_idx if i!=j if j!= 0]
     model.add_indicator_constraints(SEC)
+    model.add_constraint(z[0] == 0)
     model.add_constraints(z[i] == z[j] for i in i_idx for j in i_idx  if orig_task[i] == orig_task[j])
-    model.add_constraints(z[i] +c_operate[i] + c_travel[i][0] <= c_max for i in i_idx)
+    model.add_constraints(z[i] <= c_max for i in i0_idx)
     model.minimize(c_max)
 
     model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
@@ -311,6 +329,7 @@ class SolvedInstance():
         self.total_robots = total_robots
         self.solve_time = solve_time
         self.gap = self._get_gap(sol_result)
+        self.solve_result = sol_result
         self.instance_num = instance_num
         
     def _get_gap(self, solve_result):

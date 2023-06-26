@@ -166,12 +166,23 @@ def process_vrp_ver2(raw):
     processed_data = Processed(depot, expanded_tasks, None, None)
     return processed_data
 
+def process_vrp_ver2_makespan(raw):
+    depot = raw.depot
+    tasks = raw.tasks
+    expanded_tasks = expand_tasks(tasks)
+    sink = copy.deepcopy(depot)
+    sink.index = expanded_tasks[-1].index + 1
+    sink.origin_idx = tasks[-1].index + 1
+    expanded_tasks.append(sink)
+    processed_data = Processed(depot, expanded_tasks, None, None)
+    return processed_data
+
 PROCESS_METHOD ={
     1: process_vrp_sumofcosts,
     2: process_flow,
     3: process_vrp_makespan,
     4: process_vrp_ver2,
-    5: process_vrp_ver2
+    5: process_vrp_ver2_makespan
 }
 
 def process(raw, method):

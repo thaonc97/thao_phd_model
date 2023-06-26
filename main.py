@@ -19,15 +19,14 @@ if __name__ == "__main__":
     }
     """
 
-    method = 5
+    method = 2
 
-    total_robots = 3
+    total_robots = 5
     random_data = False
 
-    data_name = 'data4' #real data
-    total_tasks = 15 # random data
+    data_name = 'data5' #real data
+    total_tasks = 100 # random data
     
-    print(f'Solving for {total_robots} robots and {total_tasks}')
     if method == 4 or method == 5:
         is_depot_task = True
     else:
