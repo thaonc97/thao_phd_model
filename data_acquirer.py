@@ -54,7 +54,7 @@ def gen_tasks(num_tasks, max_robots, coor_range = 500, no_delivery = False):
             total_robots_required = rnd.randint(1,max_robots+1)
         else:
             total_robots_required = 1
-        process_time = rnd.randint(0,500)
+        process_time = np.linalg.norm(pickup_coor- dest_coor)
         cur_tasks = Task(pickup_coor, dest_coor, process_time, total_robots_required, i)
         tasks.append(cur_tasks)
     return tasks

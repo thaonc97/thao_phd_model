@@ -21,16 +21,16 @@ if __name__ == "__main__":
 
     method = 2
 
-    total_robots = 5
+    total_robots = 2
     random_data = False
 
-    data_name = 'data5' #real data
-    total_tasks = 100 # random data
+    data_name = 'data2' #real data
+    total_tasks = 4 # random data
     
-    if method == 4 or method == 5:
+    if False:
         is_depot_task = True
     else:
-        is_depot_task = False
+        is_depot_task = False #TODO remove this
     if random_data:
         raw = gen_data(total_robots, total_tasks, False, is_depot_task)
     else:

@@ -159,15 +159,19 @@ def process_vrp_makespan(raw):
     processed_data = Processed(depot,tasks,v_prime,e_prime)
     return processed_data
 
-def process_vrp_ver2(raw):
-    depot = raw.depot
+def process_vrp_ver2(raw : Raw):
+    raw_depot = raw.depot
+    depot_coor = raw_depot.coor
+    depot = Task(depot_coor,depot_coor,0,0,0)
     tasks = raw.tasks
     expanded_tasks = expand_tasks(tasks)
     processed_data = Processed(depot, expanded_tasks, None, None)
     return processed_data
 
-def process_vrp_ver2_makespan(raw):
-    depot = raw.depot
+def process_vrp_ver2_makespan(raw: Raw):
+    raw_depot = raw.depot
+    depot_coor = raw_depot.coor
+    depot = Task(depot_coor,depot_coor,0,0,0)
     tasks = raw.tasks
     expanded_tasks = expand_tasks(tasks)
     sink = copy.deepcopy(depot)

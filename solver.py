@@ -113,7 +113,7 @@ def _cplex_solve_flow_makespan(total_robots,
     else:
         x = model.binary_var_dict(uv_idx, name = 'x')
 
-    model.add_constraint(model.sum(f[0,v] for v in edges[0]) == total_robots) #14
+    model.add_constraint(model.sum(f[0,v] for v in edges[0] if v != sink_idx) == total_robots) #14
     model.add_constraint(model.sum(f[u,sink_idx] for u in edges if sink_idx in edges[u]) == total_robots) #15
     model.add_constraints(model.sum(f[u,v] for u in u_idx if v in edges[u]) - model.sum(f[v,vp] for vp in edges[v]) == 0 for v in u_idx[1:-1]) #16
     model.add_constraints(f[u,v] == capac[(u,v)] for (u,v) in edge_jobs) #18
@@ -126,11 +126,13 @@ def _cplex_solve_flow_makespan(total_robots,
         indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u]  +c[u][v]) for (u,v) in edge_travels] #21
         model.add_indicator_constraints(indicator_SEC) 
     else:
-        # big_m = helpers.cal_big_m(nodes)
-        big_m = 10**6
+        big_m = helpers.cal_big_m(nodes)
+        big_m = cfg.BIG_M
         model.add_constraints(z[v] + big_m*(1-x[u,v]) >= z[u] +c[u][v] for (u,v) in edge_travels)
     model.minimize(z[sink_idx])
     
+    if cfg.BENDER_STRAT:
+        model.parameters.benders.strategy = cfg.BENDER_STRAT
 
     model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
     model.time_limit = cfg.SOLVE_TIME

@@ -35,7 +35,7 @@ class Task:
         return (expanded_pickups, expanded_dests)
     
 class Raw:
-    def __init__(self,depot, tasks :list[Task]):
+    def __init__(self,depot: Node, tasks :list[Task]):
         self.depot = depot
         self.tasks = tasks
     
