@@ -233,7 +233,7 @@ def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
         SEC = [model.indicator_constraint(x[i,j],z[j] == z[i] + c_travel[i][j] +c_operate[i] +y[j]) for i in i0_idx for j in i_idx if i!=j]
         model.add_indicator_constraints(SEC)
     else:
-        big_m = 10**6
+        big_m = cfg.BIG_M
         model.add_constraints(z[j] + big_m*(1-x[i,j]) >= z[i] + c_operate[i]  +c_travel[i][j] +y[j] for i in i0_idx for j in i_idx if i!=j)
         model.add_constraints(z[j] - big_m*(1-x[i,j]) <= z[i] + c_operate[i]  +c_travel[i][j] +y[j] for i in i0_idx for j in i_idx if i!=j)
     model.add_constraints(z[i] == z[j] for i in i_idx for j in i_idx  if orig_task[i] == orig_task[j])
@@ -243,7 +243,7 @@ def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
     model.time_limit = cfg.SOLVE_TIME
     if cfg.EXPORT_MODEL == True:
         print(model.export_as_lp())
-        
+
     sol = model.solve(log_output = cfg.LOG_OUTPUT)
     solved_gap = model.solve_details.mip_relative_gap
     solve_info = {
@@ -268,7 +268,10 @@ def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
     ij_idx = [(i.index, j.index) for i in JP for j in JP if i.index != j.index]
     
     model = Model("VRP ver 2 makespan")
-    x= model.binary_var_dict(ij_idx, name = 'x')
+    if cfg.RELAXED:
+        x = model.continuous_var_dict(ij_idx,ub = 1, name = 'x')
+    else:
+        x = model.binary_var_dict(ij_idx, name = 'x')
     z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
     c_max = model.continuous_var(0, name = "c_max")
     c_travel = helpers.create_task_dist_dict(depot, expanded_tasks)
@@ -279,8 +282,12 @@ def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
     model.add_constraint(model.sum(x[0,i] for i in i_idx) == I)
     model.add_constraints(model.sum(x[i,j] for j in i0_idx if j!= i if j!=0) == 1 for i in i_idx)
     model.add_constraints(model.sum(x[i,j] for i in i0_idx if i!= j if i != sink_idx) == 1 for j in i_idx)
-    SEC = [model.indicator_constraint(x[i,j],z[j] >= z[i] + c_travel[i][j] +c_operate[i]) for i in i0_idx if i!=sink_idx for j in i0_idx if i!=j if j!= 0]
-    model.add_indicator_constraints(SEC)
+    if cfg.USE_INDICATOR:
+        SEC = [model.indicator_constraint(x[i,j],z[j] >= z[i] + c_travel[i][j] +c_operate[i]) for i in i0_idx if i!=sink_idx for j in i0_idx if i!=j if j!= 0]
+        model.add_indicator_constraints(SEC)
+    else:
+        big_m = cfg.BIG_M
+        model.add_constraints(z[j]+ big_m*(1-x[i,j]) >= z[i] + c_travel[i][j] + c_operate[i] for i in i0_idx if i!=sink_idx for j in i0_idx if i!=j if j!= 0)
     model.add_constraint(z[0] == 0)
     model.add_constraints(z[i] == z[j] for i in i_idx for j in i_idx  if orig_task[i] == orig_task[j])
     model.add_constraints(z[i] <= c_max for i in i0_idx)
