@@ -293,6 +293,8 @@ def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
     model.add_constraints(z[i] <= c_max for i in i0_idx)
     model.minimize(c_max)
 
+    if cfg.BENDER_STRAT:
+        model.parameters.benders.strategy = cfg.BENDER_STRAT
     model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
     model.time_limit = cfg.SOLVE_TIME
     if cfg.EXPORT_MODEL == True:
