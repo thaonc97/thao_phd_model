@@ -25,13 +25,13 @@ if __name__ == "__main__":
     }
     """
 
-    method = 2
+    method = 5
 
-    total_robots = 3
-    random_data = True
+    total_robots = 1
+    random_data = False
 
-    data_name = 'data1' #real data
-    total_tasks = 20 # random data
+    data_name = 'generated5' #real data
+    total_tasks = 6 # random data
     
     if False:
         is_depot_task = True
@@ -45,8 +45,6 @@ if __name__ == "__main__":
     print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
     processed_data = process(raw, method) 
     solve_result = solve_pdpcr(processed_data, total_robots, method)
-
-    print(f"CPLEX makespan: {solve_result['sol']}")
 
     processed_h = heuristic.process_greedy_1(raw)
     solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
