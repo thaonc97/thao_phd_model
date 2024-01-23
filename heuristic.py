@@ -137,7 +137,8 @@ def solve_greedy_1(processed:Processed, total_robots): #
     print(f"The heuristic solution is {cur_sol.get_makespan()}")
     return cur_sol 
 
-def solve_greedy_jp(processed:Processed, total_robots): # 
+def solve_greedy_jp(processed:Processed, total_robots):
+    #TODO
     depot = processed.depot
     tasks = processed.tasks
 

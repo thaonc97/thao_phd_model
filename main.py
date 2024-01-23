@@ -43,11 +43,11 @@ if __name__ == "__main__":
         raw = get_data(data_name,'csv', is_depot_task)
 
     print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
-    # processed_data = process(raw, method) 
-    # solve_result = solve_pdpcr(processed_data, total_robots, method)
+    processed_data = process(raw, method) 
+    solve_result = solve_pdpcr(processed_data, total_robots, method)
 
-    processed_h = heuristic.process_greedy_1(raw)
-    solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
+    # processed_h = heuristic.process_greedy_1(raw)
+    # solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
     # node_idx_mapper = {node.index: node for node in processed_data.nodes}
     # moved_edges = visualization.get_moved_edges(solve_result,False)
     # paths = visualization.get_paths(moved_edges,total_robots)

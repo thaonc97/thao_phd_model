@@ -26,8 +26,28 @@ def _get_data_from_csv(path, depot_as_task: True):
     raw = Raw(depot, tasks)
     return raw
 
+def _get_data_wr2(path,depot_as_task:True):
+    """Generate data fromInstances for the Pickup and Delivery Problem with Time Windows 
+    based on open data https://data.mendeley.com/datasets/wr2ct4r22f/2 
+
+    Parameters
+    ----------
+    path : string
+        path to file
+    depot_as_task : bool
+        if True then treat the depot as a dummy task for easier process later
+
+    Returns
+    -------
+    raw :Raw
+        converted raw data
+    """
+    #TODO
+    pass
+
 DATA_GETTER ={
-     'csv': _get_data_from_csv
+     'csv': _get_data_from_csv,
+
 }
 
 def get_data(file_name, file_type = 'csv', depot_as_task = False):
@@ -51,7 +71,11 @@ def gen_tasks(num_tasks, max_robots, coor_range = 500, no_delivery = False):
         else:
             dest_coor = rnd.uniform(0, coor_range,2)
         if max_robots !=1:
-            total_robots_required = rnd.randint(1,max_robots+1)
+            is_coop = (rnd.rand() > cfg.GEN_COOP_RATE)
+            if is_coop == True:
+                total_robots_required = rnd.randint(1,max_robots+1)
+            else:
+                total_robots_required = 1
         else:
             total_robots_required = 1
         process_time = np.linalg.norm(pickup_coor- dest_coor)
