@@ -26,7 +26,7 @@ def _get_data_from_csv(path, depot_as_task: True):
     raw = Raw(depot, tasks)
     return raw
 
-def _get_data_wr2(path,depot_as_task:True):
+def _get_data_wr2(path:str,depot_as_task:True,**kwargs):
     """Generate data fromInstances for the Pickup and Delivery Problem with Time Windows 
     based on open data https://data.mendeley.com/datasets/wr2ct4r22f/2 
 
@@ -42,20 +42,32 @@ def _get_data_wr2(path,depot_as_task:True):
     raw :Raw
         converted raw data
     """
-    #TODO
-    pass
+    raw = _get_data_from_csv(path,depot_as_task)
+    try:
+        dist_path = kwargs["dist_path"]
+        dist_path = f'{cfg.DATA_PATH}{dist_path}'
+    except Exception as e:
+        raise Exception("dist_path is required")
+    dist_matrix = _get_dist_wr2(dist_path)
+    raw.distance_matrix = dist_matrix
+    return raw
+
+def _get_dist_wr2(path):
+    distance_matrix = np.loadtxt(path)
+    return distance_matrix
 
 DATA_GETTER ={
      'csv': _get_data_from_csv,
+     'wr2': _get_data_wr2 # Converted data from 
 
 }
 
-def get_data(file_name, file_type = 'csv', depot_as_task = False):
+def get_data(file_name, file_type = 'csv', depot_as_task = False, **kwargs):
     """
     
     """
-    data_path = f'{cfg.DATA_PATH}{file_name}.{file_type}'
-    raw = DATA_GETTER[file_type](data_path, depot_as_task)
+    data_path = f'{cfg.DATA_PATH}{file_name}'
+    raw = DATA_GETTER[file_type](data_path, depot_as_task,**kwargs)
     return raw
 
 

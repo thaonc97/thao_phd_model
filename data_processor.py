@@ -1,7 +1,7 @@
 import copy
 import numpy as np
 
-from helpers import create_cost_dict
+from helpers import create_cost_dict, create_cost_dict_wr2
 from problem_variables import Node, Task, Processed,Raw
 
 
@@ -179,6 +179,8 @@ def process_vrp_ver2_makespan(raw: Raw):
     sink.origin_idx = tasks[-1].index + 1
     expanded_tasks.append(sink)
     processed_data = Processed(depot, expanded_tasks, None, None)
+    if hasattr(raw,'dist_matrix'):
+        processed_data.dist_matrix = create_cost_dict_wr2(raw)
     return processed_data
 
 PROCESS_METHOD ={

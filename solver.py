@@ -9,31 +9,35 @@ import data_processor
 import helpers
 
 
-def solve_vrp_sumofcosts(data,total_robots):
+def solve_vrp_sumofcosts(data,total_robots, *args, **kwargs):
     depot, tasks,v_prime, e_prime = data.unpack()
-    solve_result = _cplex_solve_vrp_sumofcosts(total_robots,tasks,v_prime, e_prime)
+    solve_result = _cplex_solve_vrp_sumofcosts(total_robots,tasks,v_prime, e_prime, *args, **kwargs)
     return solve_result
 
-def solve_flow_makespan(data,total_robots):
+def solve_flow_makespan(data,total_robots, *args, **kwargs):
     depot, tasks,nodes, edges = data.unpack()
-    solve_result = _cplex_solve_flow_makespan(total_robots, tasks, nodes, edges)
+    solve_result = _cplex_solve_flow_makespan(total_robots, tasks, nodes, edges, *args, **kwargs)
     return solve_result
 
-def solve_vrp_makespan(data, total_robots):
+def solve_vrp_makespan(data, total_robots, *args, **kwargs):
     depot, tasks,v_prime, e_prime = data.unpack()
-    solve_result = _cplex_solve_vrp_makespan(total_robots,tasks,v_prime, e_prime)
+    solve_result = _cplex_solve_vrp_makespan(total_robots,tasks,v_prime, e_prime, *args, **kwargs)
     return solve_result
 
-def solve_vrp_ver2(data,total_robots):
+def solve_vrp_ver2(data,total_robots, *args, **kwargs):
     depot = data.depot
     expanded_tasks = data.tasks
-    solve_result = _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks)
+    solve_result = _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks, *args, **kwargs)
     return solve_result
 
-def solve_vrp_ver2_makespan(data,total_robots):
+def solve_vrp_ver2_makespan(data,total_robots, *args, **kwargs):
     depot = data.depot
     expanded_tasks = data.tasks
-    solve_result = _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks)
+    if hasattr(data,'dist_matrix'):
+        dist_matrix = data.dist_matrix
+        solve_result = _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks, *args, c_travel = dist_matrix)
+    else:
+        solve_result = _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks, *args, **kwargs)
     return solve_result
 
 def _cplex_solve_vrp_sumofcosts(total_robots,
@@ -259,7 +263,7 @@ def _cplex_solve_vrp_ver2(total_robots,depot, expanded_tasks):
     
     return solve_info
 
-def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
+def _cplex_solve_vrp_ver2_makespan(total_robots, depot, expanded_tasks, *args, **kwargs):
     """
     In this model, the variable associated with pickup-delivery edge is emitted.
     """
@@ -277,7 +281,10 @@ def _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks):
         x = model.binary_var_dict(ij_idx, name = 'x')
     z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
     c_max = model.continuous_var(0, name = "c_max")
-    c_travel = helpers.create_task_dist_dict(depot, expanded_tasks)
+    if  'c_travel' not in kwargs:
+        c_travel = helpers.create_task_dist_dict(depot, expanded_tasks)
+    else:
+        c_travel = kwargs['c_travel']
     c_operate = helpers.create_operate_dict(depot, expanded_tasks)
     orig_task = helpers.create_expanded_original_task_mapper(expanded_tasks)
 
@@ -326,7 +333,7 @@ SOLVE_METHOD ={
     5: solve_vrp_ver2_makespan
 }
 
-def solve_pdpcr(processed_data, total_robots, method :int):
+def solve_pdpcr(processed_data, total_robots, method :int, *args, **kwargs):
     """
     SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
@@ -336,7 +343,7 @@ def solve_pdpcr(processed_data, total_robots, method :int):
     }
     """
     solve_method = SOLVE_METHOD[method]
-    solve_result = solve_method(processed_data, total_robots)
+    solve_result = solve_method(processed_data, total_robots, *args, **kwargs)
     return solve_result
 
 class SolvedInstance():

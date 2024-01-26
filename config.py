@@ -21,4 +21,6 @@ BIG_M = 10**6
 
 GEN_COOP_RATE = 0.2
 
+DATA_SOURCE = 'wr2'
+
 BENDER_STRAT = 0

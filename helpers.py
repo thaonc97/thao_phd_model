@@ -1,4 +1,6 @@
 import numpy as np
+
+import config as cfg
 from problem_variables import Task, Node
 
 def cal_dist(node1,node2):
@@ -66,3 +68,16 @@ def cal_big_m(nodes):
         except ValueError:
             pass
     return big_m
+
+
+def create_cost_dict_wr2(raw_with_dist_travel):
+    dist_matrix = raw_with_dist_travel.distance_matrix
+    num_tasks = len(raw_with_dist_travel.tasks)
+    c = {}
+    for i in range(1,num_tasks+1):
+        dist = {
+            j:dist_matrix[i+num_tasks][j] for j in range(1,num_tasks + 1)
+        }
+        c[i] = dist
+
+    return c
