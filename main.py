@@ -46,7 +46,7 @@ if __name__ == "__main__":
         raw = get_data(data_name, data_type, is_depot_task)
 
     print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
-    processed_data = process(raw, method) 
+    processed_data = process(raw, method)
     solve_result = solve_pdpcr(processed_data, total_robots, method,dist_path)
 
     # processed_h = heuristic.process_greedy_1(raw)
@@ -59,3 +59,15 @@ if __name__ == "__main__":
     # paths_coor = visualization.get_paths_coor(paths,node_idx_mapper)
     # edge_paths = visualization.get_edge_paths(paths)
     print('Done')
+
+
+def mass_solve_wr2(instance_paths:list, dist_paths:list, total_robots:int, method :int = 5):
+    
+    for (instance,path) in zip(instance_paths,dist_paths):
+        raw = get_data(instance, 'wr2', False)
+        processed_data = process(raw, method) 
+        solve_result = solve_pdpcr(processed_data, total_robots, method,path)
+        print(f'Solved {instance} with {total_robots} robots')
+        print(f'Cost: {solve_result.cost}')
+        print(f'Runtime: {solve_result.runtime}')
+        print('------------------')

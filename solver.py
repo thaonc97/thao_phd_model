@@ -282,8 +282,10 @@ def _cplex_solve_vrp_ver2_makespan(total_robots, depot, expanded_tasks, *args, *
     z = model.continuous_var_dict(i0_idx,lb = 0, name = 'z')
     c_max = model.continuous_var(0, name = "c_max")
     if  'c_travel' not in kwargs:
+        print('solving with c_travel calculated from dist matrix')
         c_travel = helpers.create_task_dist_dict(depot, expanded_tasks)
     else:
+        print("Solver is using c_travel passed from kwargs")
         c_travel = kwargs['c_travel']
     c_operate = helpers.create_operate_dict(depot, expanded_tasks)
     orig_task = helpers.create_expanded_original_task_mapper(expanded_tasks)
@@ -362,6 +364,33 @@ class SolvedInstance():
 
 
 def mass_solve(total_tasks,total_robots,method,seed =1, total_instances = 5, log_output = True):
+    """Mass solve using random generated data
+
+    Parameters
+    ----------
+    total_tasks : int
+        total number of tasks
+    total_robots : int
+        total robots available as well as max number of robot per tasks
+    method : int
+        see SOLVE_METHOD
+    seed : int, optional
+        random seed for later  if nessessary, by default 1
+    total_instances : int, optional
+        total of generated instances to solve, by default 5
+    log_output : bool, optional
+        if log output or not, by default True
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    Raises
+    ------
+    e
+        _description_
+    """
     solved_instances = []
     for instance_num in range(total_instances):
         depot_as_task = False
