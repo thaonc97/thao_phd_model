@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+import pandas as pd
 
 import helpers
 from problem_variables import Raw, Task, Processed
@@ -133,9 +134,10 @@ def solve_greedy_1(processed:Processed, total_robots): #
         path.insert(depot)
         
         
-    print(cur_sol.paths)
+    for path in cur_sol.paths:
+        print(path)
     print(f"The heuristic solution is {cur_sol.get_makespan()}")
-    return cur_sol 
+    return cur_sol
 
 def solve_greedy_jp(processed:Processed, total_robots):
     #TODO
@@ -154,60 +156,52 @@ def solve_greedy_jp(processed:Processed, total_robots):
 
 
     uninserted = copy.deepcopy(tasks) #j left
-    uninserted_idx = [task.index for task in uninserted]
+    uninserted_idx = [task.index for task in tasks] #J_t
     paths = [Path(depot) for _ in range(total_robots)]
     cur_sol = Solution(paths, depot, tasks)
-    best_obj = 0
+    C_max = 0 
 
     idx_task_mapper = {task.index: task for task in tasks}
 
     C_max = 0
-    while len(uninserted_idx) > 0:
-        shortest_path_length = 9_999_999
-        for path in cur_sol.paths:
-            last_task = path.get_last_task()
-            last_path_idx = last_task.index
-            closest_idx = min(c_travel[last_path_idx],key = c_travel[last_path_idx].get)
-            closest_task = idx_task_mapper[closest_idx]
-            cost_if_insert = path.get_insert_cost(closest_task,c_travel,c_operate)
-        
-            if cost_if_insert < shortest_path_length:
-                shortest_path_length = cost_if_insert
-                best_path = path
-                best_task = idx_task_mapper[closest_idx]
-        
-        # print(f"CURRENT BEST PATH: {best_path} \n BEST TASK: {best_task}")
-        # Find remaining paths and insert the select task to them
-        cost_if_insert_dict = {path: path.get_insert_cost(best_task,c_travel, c_operate) for path in paths}
-        sorted_cost = list(np.sort(list(cost_if_insert_dict.values())))
-        shortest_to_insert_costs = sorted_cost[:best_task.n]
-        inserted_paths_length = shortest_to_insert_costs[-1]
+    while len(uninserted) > 0:
+        c_max = np.infty
+        for task in uninserted:
+            task_index = task.index
+            L = {}
+            for path in cur_sol.paths:
+                cost_if_insert = path.get_insert_cost(task,c_travel, c_operate)
+                L[path] = cost_if_insert
+            # Create a dataframe from the dictionary L it has 2 columns: paths and cost_if_insert and sort it by cost_if_insert
+            df_L = pd.DataFrame(list(L.items()),columns = ['paths','cost_if_insert']).sort_values('cost_if_insert')
+            # get the n th smallest cost_if_insert
+            # n = idx_task_mapper[task_index].n
+            n = task.n
+            n_th_smallest_cost = df_L.iloc[n-1]['cost_if_insert']
+            if n_th_smallest_cost < c_max:
+                c_max = n_th_smallest_cost
+                best_task = task
+                best_paths = df_L.iloc[:n]['paths'].tolist()
+                
 
-        for _ in range(best_task.n):
-            cur_length = shortest_to_insert_costs.pop(0)
-            for path, length in cost_if_insert_dict.items():
-                if length == cur_length:
-                    path.insert(best_task)
-                    path.update_total_time(inserted_paths_length)
-                    cost_if_insert_dict.pop(path)
-                    break
-            
-                    
-        for i in range(len(c_travel)):
-            try:
-                c_travel[i].pop(best_task.index)
-            except:
-                pass
-        
-        uninserted_idx.remove(best_task.index)
-    
+        for path in best_paths:
+            path.insert(best_task)
+            path.update_total_time(c_max)
+        C_max = max(C_max,c_max)
+        uninserted.remove(best_task)
+
     # insert 0 to path
     for path in paths:
         last_idx = path.get_last_task().index
         path.add_total_time(c_travel_back[last_idx])
         path.insert(depot)
-        
-        
-    print(cur_sol.paths)
-    print(f"The heuristic solution is {cur_sol.get_makespan()}")
-    return cur_sol 
+
+    for path in cur_sol.paths:
+        print(path)
+    print(f'JP sol is {cur_sol.get_makespan()}')
+
+    return cur_sol
+
+def solve_2opt(processed,total_robots, init_func):
+
+    init_sol = init_func(processed, total_robots)
