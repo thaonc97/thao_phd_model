@@ -134,9 +134,9 @@ def solve_greedy_1(processed:Processed, total_robots): #
         path.insert(depot)
         
         
-    for path in cur_sol.paths:
-        print(path)
-    print(f"The heuristic solution is {cur_sol.get_makespan()}")
+    # for path in cur_sol.paths:
+    #     print(path)
+    print(f"Thao heuristics sol {cur_sol.get_makespan().round(2)}")
     return cur_sol
 
 def solve_greedy_jp(processed:Processed, total_robots):
@@ -196,9 +196,9 @@ def solve_greedy_jp(processed:Processed, total_robots):
         path.add_total_time(c_travel_back[last_idx])
         path.insert(depot)
 
-    for path in cur_sol.paths:
-        print(path)
-    print(f'JP sol is {cur_sol.get_makespan()}')
+    # for path in cur_sol.paths:
+        # print(path)
+    print(f'JP heuristics sol is {cur_sol.get_makespan().round(2)}')
 
     return cur_sol
 
