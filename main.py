@@ -27,11 +27,11 @@ if __name__ == "__main__":
 
     method = 5
 
-    total_robots = 10
+    total_robots = 2
     random_data = False
 
     data_type = 'csv'
-    data_name = '/lim/lc107-5-uniform.csv'
+    data_name = 'generated2.csv'
     # data_name = 'wr2/bar-n100-1-3.csv' #real data
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
@@ -50,8 +50,15 @@ if __name__ == "__main__":
     # solve_result = solve_pdpcr(processed_data, total_robots, method)
 
     processed_h = heuristic.process_greedy_1(raw)
-    solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
-    solve_result_h_jp = heuristic.solve_greedy_jp(processed_h, total_robots)
+    # solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
+    # solve_result_h_jp = heuristic.solve_greedy_jp(processed_h, total_robots)
+
+    depot = processed_h.depot
+    tasks = processed_h.tasks
+    c_travel = helpers.create_task_dist_dict(depot,tasks)
+    c_operate = helpers.create_operate_dict(depot,tasks)
+    solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
+    solve_opt.solve(total_robots= total_robots)
     
     print('Done')
 
