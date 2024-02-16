@@ -78,10 +78,12 @@ class Solution:
     def __repr__(self):
         return f"Paths {self.paths}"
     
-    def get_idx_paths(self):
+    def get_idx_paths(self,change_sink_idx = False):
         idx_paths = []
         for path in self.paths:
             idx_paths.append([task.index for task in path.tasks])
+            if change_sink_idx:
+                idx_paths[-1][-1] = -1
         return idx_paths
 
 
@@ -350,7 +352,7 @@ class TwoOptSolver:
             edges.append((0,path[0]))
         for i in range(cur_len - 1):
             edges.append((path[i],path[i + 1]))
-        edges.append((path[-1],-1))
+        # edges.append((path[-1],-1))
         return edges
     
     def _apply_2opt(self, G ,edge1, edge2):
@@ -372,9 +374,7 @@ class TwoOptSolver:
         """
         (a,b) = edge1
         (c,d) = edge2
-        if a==c:
-            return False
-        elif b==d:
+        if a==d or a==c or c==b or c==d:
             return False
         elif a in descendants[d]:
             return False
@@ -383,13 +383,13 @@ class TwoOptSolver:
         else:
             return True
 
-    def _get_out_nodes(self,graph: nx.DiGraph):
+    def _get_out_nodes(self,graph):
         """
         Get a dictionary of out node from all nodes on a directed graph
         
         Parameters
         ----------
-        graph : nx.DiGraph
+        graph : nx.DiGraph or nx.MultiDiGraph
 
 
         Returns
@@ -403,9 +403,8 @@ class TwoOptSolver:
             out_nodes[node] = list(graph.successors(node))
 
         return out_nodes
-    
 
-    def _get_makespan(self, graph, c_travel, c_operate):
+    def _get_start_time(self, graph, c_travel, c_operate):
         reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
         out_nodes = self._get_out_nodes(graph)
 
@@ -429,6 +428,17 @@ class TwoOptSolver:
                     z[succ] = z_cur
         return z
 
+    def _change_sink_idx(self, paths):
+        """Change the idx of the depot at the end of each path to -1
+
+        Parameters
+        ----------
+        paths : list
+            list of path of each solution
+        """
+        for path in paths:
+            path[-1] = -1
+            return paths
 
     def solve(self, total_robots, init_function= solve_greedy_jp_compare_start_time):
         """
@@ -437,10 +447,9 @@ class TwoOptSolver:
         init_sol = init_function(self.processed, total_robots)
         cur_C_max = init_sol.get_makespan()
         print(f'Initial makespan: {cur_C_max}')
-        G = self._to_graph(init_sol.get_idx_paths())
-        descendants = {
-            node: nx.descendants(G,node) for node in G.nodes
-        }
+        idx_paths = init_sol.get_idx_paths(change_sink_idx = True)
+        G = self._to_graph(idx_paths)
+        descendants = {node: nx.descendants(G,node) for node in G.nodes}
         edges = list(G.edges())
         # get 2 different elements from edges:
         for i in range(len(edges)):
@@ -448,8 +457,14 @@ class TwoOptSolver:
                 edge1 = edges[i]
                 edge2 = edges[j]
                 if self._two_opt_able(edge1, edge2, descendants) == True:
-                    G = self._apply_2opt(G, edge1, edge2, descendants)
-                    new_C_max = self._get_makespan(G,self.c_travel, self.c_operate)
+                    G_p = copy.deepcopy(G)
+                    G_p = self._apply_2opt(G_p, edge1, edge2)
+                    new_C_max = self._get_start_time(G_p,self.c_travel, self.c_operate)[-1]
                     if new_C_max < cur_C_max:
                         cur_C_max = new_C_max
-    #TODO init solution when return to depot is 0 instead of -1, change this
+                        print(f"Applied 2-opt successfully on edges {edge1} and {edge2}, new makespan: {cur_C_max}")
+                        G = G_p
+
+        return G
+    
+    #TODO Error with 10 robots and data_name = 'lim/lrc106-5-uniform.csv'

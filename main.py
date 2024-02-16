@@ -27,11 +27,11 @@ if __name__ == "__main__":
 
     method = 5
 
-    total_robots = 2
+    total_robots = 10
     random_data = False
 
     data_type = 'csv'
-    data_name = 'generated2.csv'
+    data_name = 'lim/lrc106-5-uniform.csv'
     # data_name = 'wr2/bar-n100-1-3.csv' #real data
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
