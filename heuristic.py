@@ -410,6 +410,7 @@ class TwoOptSolver:
 
         c_operate[-1] = 0
         c_travel[-1] = {}
+        c_travel[0][-1] = 0
         for i in c_travel:
             if i!= 0 and i!=-1:
                 c_travel[i][-1] = c_travel[i][0]
@@ -449,22 +450,33 @@ class TwoOptSolver:
         print(f'Initial makespan: {cur_C_max}')
         idx_paths = init_sol.get_idx_paths(change_sink_idx = True)
         G = self._to_graph(idx_paths)
-        descendants = {node: nx.descendants(G,node) for node in G.nodes}
-        edges = list(G.edges())
-        # get 2 different elements from edges:
-        for i in range(len(edges)):
-            for j in range(i+1,len(edges)):
-                edge1 = edges[i]
-                edge2 = edges[j]
-                if self._two_opt_able(edge1, edge2, descendants) == True:
-                    G_p = copy.deepcopy(G)
-                    G_p = self._apply_2opt(G_p, edge1, edge2)
-                    new_C_max = self._get_start_time(G_p,self.c_travel, self.c_operate)[-1]
-                    if new_C_max < cur_C_max:
-                        cur_C_max = new_C_max
-                        print(f"Applied 2-opt successfully on edges {edge1} and {edge2}, new makespan: {cur_C_max}")
-                        G = G_p
 
-        return G
+        finish_loop = False
+        restart_loop = False
+        while finish_loop == False:
+            restart_loop= False
+            descendants = {node: nx.descendants(G,node) for node in G.nodes}
+            edges = list(G.edges())
+            # get 2 different elements from edges:
+            for i in range(len(edges)):
+                if restart_loop == True:
+                    break
+                for j in range(i+1,len(edges)):
+                    edge1 = edges[i]
+                    edge2 = edges[j]
+                    if self._two_opt_able(edge1, edge2, descendants) == True: 
+                        G_p = copy.deepcopy(G)
+                        G_p = self._apply_2opt(G_p, edge1, edge2)
+                        new_C_max = self._get_start_time(G_p,self.c_travel, self.c_operate)[-1]
+                        if new_C_max < cur_C_max:
+                            cur_C_max = new_C_max
+                            print(f"Applied 2-opt successfully on edges {edge1} and {edge2}, new makespan: {cur_C_max}")
+                            G = G_p
+                            restart_loop = True
+                            break
+            if restart_loop == False:
+                finish_loop = True
+        return G, cur_C_max
     
     #TODO Error with 10 robots and data_name = 'lim/lrc106-5-uniform.csv'
+    #This is because c_travel[0][-1] didn't exsist. I added it manually in the get_start_time function
