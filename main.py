@@ -27,12 +27,12 @@ if __name__ == "__main__":
 
     method = 5
 
-    total_robots = 10
+    total_robots = 2
     random_data = False
 
     data_type = 'csv'
-    data_name = 'lim/lrc101-5-uniform.csv'
-    # data_name = 'wr2/bar-n100-1-3.csv' #real data
+    # data_name = 'lim/lrc101-5-uniform.csv'
+    data_name = 'data6.csv' 
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
@@ -51,7 +51,8 @@ if __name__ == "__main__":
 
     processed_h = heuristic.process_greedy_1(raw)
     # solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
-    # solve_result_h_jp = heuristic.solve_greedy_jp(processed_h, total_robots)
+    solve_result_h_jp = heuristic.solve_greedy_jp(processed_h, total_robots)
+
 
     depot = processed_h.depot
     tasks = processed_h.tasks
