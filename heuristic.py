@@ -1,4 +1,6 @@
 import copy
+from docplex.mp.model import Model
+import heapq
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -481,3 +483,58 @@ class TwoOptSolver:
     #TODO Error with 10 robots and data_name = 'lim/lrc106-5-uniform.csv'
     #This is because c_travel[0][-1] didn't exsist. I added it manually in the get_start_time function
 
+
+class VietSolver:
+    """Solve PDPCR applying Viet's idea
+    """
+    def __init__(self, processed, c_travel, c_operate, *kwargs):
+        self.processed = processed
+        self.c_travel = c_travel
+        self.c_operate = c_operate
+        self.tasks_remains = copy.deepcopy(processed.tasks)
+
+    def _all_tasks_finished(self):
+        all_finished = False
+        if len(self.tasks_remains) == 0:
+            all_finished = True
+        return all_finished
+    
+    def _cal_Jk(self,k):
+        ns = [task.n for task in self.tasks_remains]
+        k_largest = heapq.nlargest(k,ns)
+        J_k = sum(k_largest)
+        return J_k
+
+    def _solve_viet(self,total_robots, tasks_each_iteration, consider_process_time):
+    
+        k = tasks_each_iteration
+        J_k = self._cal_Jk(k)
+        if J_k <= total_robots:
+            self._solve_first_case(total_robots, tasks_each_iteration, consider_process_time)
+        
+    
+    def _update_paths(self):
+        """Update the paths of each robot as well as procesed time
+        """
+        pass
+        #TODO
+    
+    def _remove_processed_tasks(self):
+        pass
+        #TODO
+    
+    def solve(self,total_robots, tasks_each_iteration, consider_process_time):
+        
+        while self._all_tasks_finished() == False:
+            self._solve_viet(total_robots, tasks_each_iteration, consider_process_time)
+            self._update_paths()
+            self._remove_processed_tasks()
+        #TODO
+            
+    def _solve_first_case(self,total_robots, tasks_each_iteration, consider_process_time):
+
+        m = Model('Viet_case_1')
+        A_indicies = [i for i in range(len(self.tasks_remains))]
+        B_indicies = [j for j in range(total_robots)]
+        d = m.continuous_var(name = 'd')
+        #TODO
