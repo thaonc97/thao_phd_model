@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+import config as cfg
 import helpers
 from problem_variables import Raw, Task, Processed
 
@@ -509,8 +510,8 @@ class VietSolver:
         starting_times = {i:0 for i in range(total_robots)}
         J_k = self._cal_Jk(tasks_each_iteration)
         if J_k <= total_robots:
-            self._solve_first_case(total_robots, starting_times, tasks_each_iteration, consider_process_time)
-        
+            solve_result = self._solve_first_case(total_robots, starting_times, tasks_each_iteration, consider_process_time)
+        #TODO
     
     def _update_paths(self):
         """Update the paths of each robot as well as procesed time
@@ -530,33 +531,77 @@ class VietSolver:
             self._remove_processed_tasks()
         #TODO
             
-    def _solve_first_case(self,total_robots, starting_times :dict, tasks_each_iteration : int, consider_process_time : bool):
-
-        A_idcs = [i for i in range(len(self.tasks_remains))]
+    def _solve_first_case(self, total_robots, starting_times :dict, tasks_each_iteration : int, consider_process_time : bool):
+        A_idcs = [i for i in range(1,len(self.tasks_remains) + 1)]
         B_idcs = [j for j in range(total_robots)]
         BA_idcs = [(i,j) for i in B_idcs for j in A_idcs]
 
         a = self.c_travel
         t = starting_times
-        c= self.c_operate
-        capac = {i:{j:1} for i in B_idcs for j in A_idcs}
+        c = self.c_operate
+        n ={task.index: task.n for task in self.tasks_remains}
 
         m = Model('Viet_case_1')
-    
-        d = m.continuous_var(name = 'd')
+
         C_max = m.continuous_var(name = 'C_max')
         x = m.continuous_var_dict(BA_idcs, name = 'x')
-        q = m.interger_var_dict(B_idcs, name = 'q')
-        f = m.continuous_var_dict(BA_idcs, name = 'f')
-        
+
         m.minimize(C_max)
 
         if consider_process_time:
             m.add_constraints(t[i] + a[i][j]*x[i,j] +c[j] <= C_max for i in B_idcs for j in A_idcs)
         else:
             m.add_constraints(t[i] + a[i][j]*x[i,j] <= C_max for i in B_idcs for j in A_idcs)
+
+        m.add_constraints(m.sum(x[i,j] for i in B_idcs) == n[j] for j in A_idcs)
+        m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in B_idcs)
+
+        m.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+        m.time_limit = cfg.SOLVE_TIME
+        if cfg.EXPORT_MODEL == True:
+            print(m.export_as_lp())
+        sol = m.solve(log_output = cfg.LOG_OUTPUT)
+
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+        solve_info = {
+            'sol':sol,
+            'x':x,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
         
-        m.add_constraints(f[i,j] <= capac[i][j] for i in B_idcs for j in A_idcs) # Capacity constraint
-        # TODO flow conservation constraints
-        m.add_constraints(m.sum(x[i,j] for i in B_idcs) == 1 for j in A_idcs) #
-        #TODO
+        return solve_info
+
+    # def _solve_first_case(self,total_robots, starting_times :dict, tasks_each_iteration : int, consider_process_time : bool):
+
+    #     A_idcs = [i for i in range(len(self.tasks_remains))]
+    #     B_idcs = [j for j in range(total_robots)]
+    #     BA_idcs = [(i,j) for i in B_idcs for j in A_idcs]
+
+    #     a = self.c_travel
+    #     t = starting_times
+    #     c= self.c_operate
+    #     capac = {i:{j:1} for i in B_idcs for j in A_idcs}
+
+    #     m = Model('Viet_case_1')
+    
+    #     d = m.continuous_var(name = 'd')
+    #     C_max = m.continuous_var(name = 'C_max')
+    #     x = m.continuous_var_dict(BA_idcs, name = 'x')
+    #     q = m.integer_var_dict(B_idcs, name = 'q')
+    #     f = m.continuous_var_dict(BA_idcs, name = 'f')
+        
+    #     m.minimize(C_max)
+
+    #     if consider_process_time:
+    #         m.add_constraints(t[i] + a[i][j]*x[i,j] +c[j] <= C_max for i in B_idcs for j in A_idcs)
+    #     else:
+    #         m.add_constraints(t[i] + a[i][j]*x[i,j] <= C_max for i in B_idcs for j in A_idcs)
+        
+    #     m.add_constraints(f[i,j] <= capac[i][j] for i in B_idcs for j in A_idcs) # Capacity constraint
+    #     # TODO flow conservation constraints
+    #     m.add_constraints(m.sum(x[i,j] for i in B_idcs) == 1 for j in A_idcs) #
+    #     #TODO
