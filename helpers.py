@@ -81,3 +81,6 @@ def create_cost_dict_wr2(raw_with_dist_travel):
         c[i] = dist
 
     return c
+
+def h_equal(a,b,eps=1e-6):
+    return abs(a-b) < eps

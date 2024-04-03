@@ -174,7 +174,7 @@ def solve_greedy_1(processed:Processed, total_robots): #
     return cur_sol
 
 def solve_greedy_jp(processed:Processed, total_robots):
-    #TODO
+    "Do compare process time"
     depot = processed.depot
     tasks = processed.tasks
 
@@ -485,14 +485,22 @@ class TwoOptSolver:
     #This is because c_travel[0][-1] didn't exsist. I added it manually in the get_start_time function
 
 
+
 class VietSolver:
     """Solve PDPCR applying Viet's idea
     """
     def __init__(self, processed, c_travel, c_operate, *kwargs):
         self.processed = processed
+        self.depot = processed.depot
+        self.tasks = processed.tasks
         self.c_travel = c_travel
         self.c_operate = c_operate
-        self.tasks_remains = copy.deepcopy(processed.tasks)
+        self.tasks_remains = [task for task in processed.tasks]
+        self.idx_task_mapper = {task.index: task for task in processed.tasks}
+
+    def get_makespan(self):
+        makespan = max([path.total_time for _,path in self.paths.items()])
+        return makespan
 
     def _all_tasks_finished(self):
         all_finished = False
@@ -506,37 +514,207 @@ class VietSolver:
         J_k = sum(k_largest)
         return J_k
 
-    def _solve_viet(self, total_robots, tasks_each_iteration, consider_process_time):
+    def _solve_viet(self, 
+                    total_robots, 
+                    tasks_each_iteration, 
+                    consider_process_time):
+        
         starting_times = {i:0 for i in range(total_robots)}
         J_k = self._cal_Jk(tasks_each_iteration)
         if J_k <= total_robots:
-            solve_result = self._solve_first_case(total_robots, starting_times, tasks_each_iteration, consider_process_time)
+            print(f'J_k = {J_k} <= total_robots = {total_robots}, solving first case' )
+            self._lastest_solve_result = self._solve_third_case(total_robots, 
+                                                                starting_times, 
+                                                                tasks_each_iteration, 
+                                                                consider_process_time)
+        else: 
+            print(f'J_k = {J_k} > total_robots = {total_robots}, solving second case' )
+            self._lastest_solve_result = self._solve_second_case(total_robots, 
+                                                                 starting_times, 
+                                                                 tasks_each_iteration, 
+                                                                 consider_process_time)
         #TODO
     
     def _update_paths(self):
         """Update the paths of each robot as well as procesed time
         """
-        pass
-        #TODO
+        max_times = {task.index: 0 for task in self.tasks_remains}
+        affected_task_idcs = []
+        x_results = self._lastest_solve_result['sol'].get_value_dict(self._lastest_solve_result['x'])
+        if self.lastest_case == 2:
+            v_results_one = self._lastest_solve_result['sol'].get_value_dict(self._lastest_solve_result['v'],keep_zeros = False)
+
+        for key, value in x_results.items():
+            if helpers.h_equal(value,1):
+                robot_idx = key[0]
+                task_idx = key[1]
+                if self.lastest_case ==2 and task_idx in v_results_one:
+                    continue
+                try:
+                    affected_task_idcs.append(task_idx)
+                    cur_path_last_idx = self.paths[robot_idx][-1].index
+                    cur_time = self.c_travel[cur_path_last_idx][task_idx] 
+                    max_times[task_idx] = max(max_times[task_idx], cur_time)
+                    self.paths[robot_idx].insert(self.idx_task_mapper[task_idx])
+                except Exception as e:
+                    print(e)
+                    pass
+        
+        affected_task_idcs = set(affected_task_idcs)
+        for path_idx,path in self.paths.items():
+            last_task_idcs = path[-1].index
+            if last_task_idcs in affected_task_idcs:
+                time_to_add =max_times[last_task_idcs] +self.c_operate[last_task_idcs]
+                path.add_total_time(time_to_add)
+        
+        return
+
     
     def _remove_processed_tasks(self):
-        pass
-        #TODO
+        if self.lastest_case == 2:
+            solved_by_artificial_robot = self._lastest_solve_result['sol'].get_value_dict(self._lastest_solve_result['v'],keep_zeros = False)
+        for key, value in self._lastest_solve_result['sol'].get_value_dict(self._lastest_solve_result['x'],keep_zeros = False).items():
+            task_idx = key[1]
+            if self.lastest_case == 2:
+                if task_idx in solved_by_artificial_robot:
+                    continue
+            procesed_task = self.idx_task_mapper[task_idx]
+            #remove processed_task from self.tasks_remains
+            try:
+                self.tasks_remains.remove(procesed_task)
+            except:
+                pass
     
-    def solve(self,total_robots, tasks_each_iteration, consider_process_time):
+    def _robot_returns(self):
+        for path_idx,path in self.paths.items():
+            last_task_idx = path[-1].index
+            path.add_total_time(self.c_travel[last_task_idx][0])
+            path.insert(self.depot)
         
+        return
+
+    def solve(self, total_robots, tasks_each_iteration, consider_process_time):
+        self.paths ={i:Path(self.depot) for i in range(total_robots)}
         while self._all_tasks_finished() == False:
             self._solve_viet(total_robots, tasks_each_iteration, consider_process_time)
             self._update_paths()
             self._remove_processed_tasks()
+        self._robot_returns()
         #TODO
-            
-    def _solve_first_case(self, total_robots, starting_times :dict, tasks_each_iteration : int, consider_process_time : bool):
+    
+    def _construct_a(self, total_robots):
+        """Construct a dictionary of cost from robot i to task j,
+
+        Parameters
+        ----------
+        total_robots : int
+            Total number of robots
+
+        Returns
+        -------
+        a : dict
+            a[i][j] is the cost to go from the current position of robot i
+            (the destination of the last task that robot i processed) to
+            pick up location of task j
+        """
+        if not hasattr(self,'paths'):
+            self.paths ={i:Path(self.depot) for i in range(total_robots)}
+        a = {}
+        for i in range(total_robots):
+            a[i] = self.c_travel[self.paths[i][-1].index]
+        return a
+
+    def _construct_a_artificial(self, total_robots,total_robots_required):
+        a = {}
+        a = self._construct_a(total_robots)
+        for i in range(total_robots, total_robots_required):
+            a[i] = {j:cfg.BIG_M1 for j in range(1,len(self.tasks_remains) + 1)}
+        return a
+
+    def _solve_second_case(self,
+                           total_robots,
+                           starting_times :dict,
+                           tasks_each_iteration : int,
+                           consider_process_time : bool):
+        
+        # total_robots_required = np.sum([task.n for task in self.tasks_remains]) # This is probably for assign all 
+                                                                                # robots at each iteration case
+        J_k = self._cal_Jk(tasks_each_iteration) 
+        A_idcs = [i for i in range(1, len(self.tasks_remains) + 1)]
+        print(A_idcs)
+        B_idcs = [j for j in range(total_robots)]
+        Bf_idcs = [j for j in range(total_robots, J_k)] #Artificial robots
+        Bp_idcs = B_idcs + Bf_idcs
+        BpA_idcs = [(i,j) for i in Bp_idcs for j in A_idcs]
+
+        k = tasks_each_iteration
+        a = self._construct_a_artificial(total_robots, J_k)
+        t = starting_times
+        c = self.c_operate
+        n ={task.index: task.n for task in self.tasks_remains}
+
+        m = Model('Viet_case_2')
+        C_max = m.continuous_var(name = 'C_max')
+        x = m.binary_var_dict(BpA_idcs, name = 'x')
+        # f = m.continuous_var_dict(BpA_idcs, name = 'f')
+        v= m.binary_var_dict(A_idcs, name = 'v')
+        q = m.binary_var_dict(A_idcs, name = 'q')
+        d = m.continuous_var(name = 'd', lb = 0)
+        p = m.continuous_var_dict(BpA_idcs,name = 'p') #fake variable
+
+        m.minimize(C_max)
+        if consider_process_time:
+            m.add_constraints(C_max + (a[i][j] + t[i] + c[j])*v[j] >= (a[i][j]+ t[i] + c[j])*x[i,j] for i in B_idcs for j in A_idcs)
+        else:
+            m.add_constraints(C_max + (a[i][j] + t[i])*v[j] >= (a[i][j]+ t[i])*x[i,j] for i in B_idcs for j in A_idcs)
+
+        m.add_constraints(C_max >= cfg.BIG_M1*v[j] - cfg.BIG_M1*p[i,j] for j in A_idcs for i in Bp_idcs)
+        m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j] for j in A_idcs)
+        m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
+        m.add_constraints(x[i,j] <= 1 for i in Bp_idcs for j in A_idcs) #Capacity constraint
+        m.add_constraint(m.sum((m.sum(x[i,j] for j in A_idcs) for i in Bp_idcs)) == d) #Required flow
+        m.add_constraint(m.sum(q[j] for j in A_idcs) == k)
+        m.add_constraints(x[i,j] <= q[j] for i in Bp_idcs for j in A_idcs) # Relation x and q
+        # m.add_constraints(x[i,j] <= q[j] for i in Bp_idcs for j in A_idcs) # Relation x and q
+        m.add_constraints(x[i,j] <= v[j] for i in Bf_idcs for j in A_idcs) # Relation x and v
+        m.add_constraint(m.sum(q[j]*n[j] for j in A_idcs) == d) #Acquire flow
+
+        #Constraints regarding p
+        m.add_constraints(p[i,j] <= x[i,j] for i in Bp_idcs for j in A_idcs)
+        m.add_constraints(p[i,j] <= v[j] for i in Bp_idcs for j in A_idcs)
+        m.add_constraints(p[i,j] >= x[i,j] + v[j] -1 for i in Bp_idcs for j in A_idcs)
+
+        m.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+        m.time_limit = cfg.SOLVE_TIME
+        if cfg.EXPORT_MODEL == True:
+            print(m.export_as_lp())
+        sol = m.solve(log_output = cfg.LOG_OUTPUT)
+        # print(sol.display())
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+        solve_info = {
+            'sol':sol,
+            'x':x,
+            'v':v,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
+        
+        return solve_info
+
+
+    def _solve_third_case(self, 
+                          total_robots, 
+                          starting_times :dict, 
+                          tasks_each_iteration : int, 
+                          consider_process_time : bool):
         A_idcs = [i for i in range(1,len(self.tasks_remains) + 1)]
         B_idcs = [j for j in range(total_robots)]
         BA_idcs = [(i,j) for i in B_idcs for j in A_idcs]
 
-        a = self.c_travel
+        a = self._construct_a(total_robots)
         t = starting_times
         c = self.c_operate
         n ={task.index: task.n for task in self.tasks_remains}
@@ -544,7 +722,7 @@ class VietSolver:
         m = Model('Viet_case_1')
 
         C_max = m.continuous_var(name = 'C_max')
-        x = m.continuous_var_dict(BA_idcs, name = 'x')
+        x = m.binary_var_dict(BA_idcs,ub=1, name = 'x')
 
         m.minimize(C_max)
 
@@ -574,34 +752,157 @@ class VietSolver:
         }
         
         return solve_info
-
-    # def _solve_first_case(self,total_robots, starting_times :dict, tasks_each_iteration : int, consider_process_time : bool):
-
-    #     A_idcs = [i for i in range(len(self.tasks_remains))]
-    #     B_idcs = [j for j in range(total_robots)]
-    #     BA_idcs = [(i,j) for i in B_idcs for j in A_idcs]
-
-    #     a = self.c_travel
-    #     t = starting_times
-    #     c= self.c_operate
-    #     capac = {i:{j:1} for i in B_idcs for j in A_idcs}
-
-    #     m = Model('Viet_case_1')
     
-    #     d = m.continuous_var(name = 'd')
-    #     C_max = m.continuous_var(name = 'C_max')
-    #     x = m.continuous_var_dict(BA_idcs, name = 'x')
-    #     q = m.integer_var_dict(B_idcs, name = 'q')
-    #     f = m.continuous_var_dict(BA_idcs, name = 'f')
-        
-    #     m.minimize(C_max)
 
-    #     if consider_process_time:
-    #         m.add_constraints(t[i] + a[i][j]*x[i,j] +c[j] <= C_max for i in B_idcs for j in A_idcs)
-    #     else:
-    #         m.add_constraints(t[i] + a[i][j]*x[i,j] <= C_max for i in B_idcs for j in A_idcs)
+class VietSolverOrig(VietSolver):
+    """Class for solve Viet's problem wiht trying to assign every robots
+    """
+
+    def _cal_RA(self):
+
+        tasks = self.tasks_remains
+        R_A = sum([task.n for task in tasks])
+        return R_A
+    
+    def solve(self, total_robots, consider_process_time):
+        self.paths ={i:Path(self.depot) for i in range(total_robots)}
+        while self._all_tasks_finished() == False:
+            self._solve_viet(total_robots, consider_process_time)
+            self._update_paths()
+            self._remove_processed_tasks()
+            print(f'Tasks remains: {[task.index for task in self.tasks_remains]}')
+        self._robot_returns()
+        #TODO
+
+    def _solve_viet(self, 
+                    total_robots, 
+                    consider_process_time):
+        starting_times = {}
+        for key,value in self.paths.items():
+            starting_times[key] = value.total_time
+        R_A = self._cal_RA() #robots required to do all the tasks
+        if R_A <= total_robots:
+            print(f'R_A = {R_A} <= total_robots = {total_robots}, solving first case' )
+            self._lastest_solve_result = self._solve_first_case(total_robots, 
+                                                                starting_times, 
+                                                                consider_process_time)
+            self.lastest_case = 1
+        else: 
+            print(f'R_A = {R_A} > total_robots = {total_robots}, solving second case')
+            self._lastest_solve_result = self._solve_second_case(total_robots, 
+                                                                 starting_times, 
+                                                                 consider_process_time)
+            self.lastest_case = 2
+            
+    def _solve_second_case(self,
+                           total_robots,
+                           starting_times :dict,
+                           consider_process_time : bool):
         
-    #     m.add_constraints(f[i,j] <= capac[i][j] for i in B_idcs for j in A_idcs) # Capacity constraint
-    #     # TODO flow conservation constraints
-    #     m.add_constraints(m.sum(x[i,j] for i in B_idcs) == 1 for j in A_idcs) #
-    #     #TODO
+        # total_robots_required = np.sum([task.n for task in self.tasks_remains]) # This is probably for assign all 
+                                                                                # robots at each iteration case
+        R_A = self._cal_RA() 
+        A_idcs = [task.index for task in self.tasks_remains]
+        B_idcs = [j for j in range(total_robots)]
+        Bf_idcs = [j for j in range(total_robots, R_A)] #Artificial robots
+        Bp_idcs = B_idcs + Bf_idcs
+        BpA_idcs = [(i,j) for i in Bp_idcs for j in A_idcs]
+
+        a = self._construct_a_artificial(total_robots, R_A)
+        t = starting_times
+        c = self.c_operate
+        n ={task.index: task.n for task in self.tasks_remains}
+
+        m = Model('Viet_case_2')
+        C_max = m.continuous_var(name = 'C_max')
+        x = m.binary_var_dict(BpA_idcs, name = 'x')
+        # f = m.continuous_var_dict(BpA_idcs, name = 'f')
+        v= m.binary_var_dict(A_idcs, name = 'v')
+        # q = m.binary_var_dict(A_idcs, name = 'q')
+        # d = m.continuous_var(name = 'd', lb = 0)
+        # p = m.continuous_var_dict(BpA_idcs,name = 'p') #fake variable
+
+        m.minimize(C_max)
+        if consider_process_time:
+            m.add_constraints(C_max >= (a[i][j] + t[i] + c[j])*x[i,j] + cfg.BIG_M1*v[j] for i in B_idcs for j in A_idcs)
+        else:
+            # m.add_constraints(C_max + (a[i][j] + t[i])*v[j] >= (a[i][j]+ t[i])*x[i,j] for i in B_idcs for j in A_idcs)
+            m.add_constraints(C_max  >= (a[i][j]+ t[i])*x[i,j] + cfg.BIG_M1*v[j] for i in B_idcs for j in A_idcs)
+
+        m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j] for j in A_idcs)
+        m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
+        m.add_constraints(x[i,j] <= 1 for i in Bp_idcs for j in A_idcs) #Capacity constraint
+        m.add_constraint(m.sum((m.sum(x[i,j] for j in A_idcs) for i in Bp_idcs)) == R_A) #Required flow
+        m.add_constraints(x[i,j] <= v[j] for i in Bf_idcs for j in A_idcs) # Relation x and v
+
+        #Constraints regarding p
+        # m.add_constraints(p[i,j] <= x[i,j] for i in Bp_idcs for j in A_idcs)
+        # m.add_constraints(p[i,j] <= v[j] for i in Bp_idcs for j in A_idcs)
+        # m.add_constraints(p[i,j] >= x[i,j] + v[j] -1 for i in Bp_idcs for j in A_idcs)
+
+        m.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+        m.time_limit = cfg.SOLVE_TIME
+        if cfg.EXPORT_MODEL == True:
+            print(m.export_as_lp())
+        sol = m.solve(log_output = cfg.LOG_OUTPUT)
+        # print(sol.display())
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+        solve_info = {
+            'sol':sol,
+            'x':x,
+            'v':v,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
+        
+        return solve_info
+
+    def _solve_first_case(self, 
+                          total_robots, 
+                          starting_times :dict, 
+                          consider_process_time : bool):
+        A_idcs = [task.index for task in self.tasks_remains]
+        B_idcs = [j for j in range(total_robots)]
+        BA_idcs = [(i,j) for i in B_idcs for j in A_idcs]
+
+        a = self._construct_a(total_robots)
+        t = starting_times
+        c = self.c_operate
+        n ={task.index: task.n for task in self.tasks_remains}
+
+        m = Model('Viet_case_1')
+
+        C_max = m.continuous_var(name = 'C_max')
+        x = m.binary_var_dict(BA_idcs,ub=1, name = 'x')
+
+        m.minimize(C_max)
+
+        if consider_process_time:
+            m.add_constraints(t[i] + a[i][j]*x[i,j] +c[j] <= C_max for i in B_idcs for j in A_idcs)
+        else:
+            m.add_constraints(t[i] + a[i][j]*x[i,j] <= C_max for i in B_idcs for j in A_idcs)
+
+        m.add_constraints(m.sum(x[i,j] for i in B_idcs) == n[j] for j in A_idcs)
+        m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in B_idcs)
+
+        m.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+        m.time_limit = cfg.SOLVE_TIME
+        if cfg.EXPORT_MODEL == True:
+            print(m.export_as_lp())
+        sol = m.solve(log_output = cfg.LOG_OUTPUT)
+
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+        solve_info = {
+            'sol':sol,
+            'x':x,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
+        
+        return solve_info

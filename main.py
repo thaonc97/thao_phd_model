@@ -31,8 +31,8 @@ if __name__ == "__main__":
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'lim/lrc101-5-uniform.csv'
-    data_name = 'data6.csv' 
+    # data_name = 'lim/100/lc101-5-uniform.csv'
+    data_name = 'data2.csv' 
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
@@ -51,16 +51,21 @@ if __name__ == "__main__":
 
     processed_h = heuristic.process_greedy_1(raw)
     # solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
-    solve_result_h_jp = heuristic.solve_greedy_jp(processed_h, total_robots)
+    solve_result_h_jp = heuristic.solve_greedy_jp_compare_start_time(processed_h, total_robots)
+    solve_result_h_jp.get_makespan()
+    print(solve_result_h_jp.paths)
 
 
     depot = processed_h.depot
     tasks = processed_h.tasks
     c_travel = helpers.create_task_dist_dict(depot,tasks)
     c_operate = helpers.create_operate_dict(depot,tasks)
-    solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
-    solve_opt.solve(total_robots= total_robots)
-    
+    # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
+    # solve_opt.solve(total_robots= total_robots)
+    solve_viet = heuristic.VietSolverOrig(processed_h,c_travel, c_operate)
+    solve_viet.solve(total_robots,True)
+    print(solve_viet.paths)
+    print(f'makespan: {solve_viet.get_makespan()}')
     print('Done')
 
 
