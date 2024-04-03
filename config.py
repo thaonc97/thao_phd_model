@@ -13,7 +13,7 @@ RND_SEED = 15
 #SOLVER config
 SOLVE_GAP = 0.0
 SOLVE_TIME = 3600
-LOG_OUTPUT = False
+LOG_OUTPUT = True
 EXPORT_MODEL = True
 USE_INDICATOR = False
 RELAXED = False
@@ -27,3 +27,8 @@ BENDER_STRAT = 0
 
 #VIET SOLVER CONFIG
 BIG_M1 = 10**6
+
+LOG_LEVEL = "INFO" # DEBUG < INFO < WARNING < ERROR < CRITICAL < FATAL
+#log_fomartter = "%(message)s"
+# Nếu muốn thêm thời gian và loglevel thì dùng format bên dưới
+LOG_FORMATTER = "%(asctime)s:%(levelname)s:%(message)s"

@@ -7,6 +7,7 @@ import pandas as pd
 
 import config as cfg
 import helpers
+import logging
 from problem_variables import Raw, Task, Processed
 
 class Path:
@@ -596,8 +597,11 @@ class VietSolver:
     def solve(self, total_robots, tasks_each_iteration, consider_process_time):
         self.paths ={i:Path(self.depot) for i in range(total_robots)}
         while self._all_tasks_finished() == False:
+            logging.debug(f'Start solving')
             self._solve_viet(total_robots, tasks_each_iteration, consider_process_time)
+            logging.debug(f'Solved!\n updating paths...')
             self._update_paths()
+            logging.debug(f'Done\n Removing processed tasks...')
             self._remove_processed_tasks()
         self._robot_returns()
         #TODO
@@ -767,10 +771,12 @@ class VietSolverOrig(VietSolver):
     def solve(self, total_robots, consider_process_time):
         self.paths ={i:Path(self.depot) for i in range(total_robots)}
         while self._all_tasks_finished() == False:
+            logging.info(f'Start solving')
             self._solve_viet(total_robots, consider_process_time)
+            logging.info(f'Solved!\n updating paths...')
             self._update_paths()
+            logging.info(f'Done\n Removing processed tasks...')
             self._remove_processed_tasks()
-            print(f'Tasks remains: {[task.index for task in self.tasks_remains]}')
         self._robot_returns()
         #TODO
 
@@ -816,11 +822,9 @@ class VietSolverOrig(VietSolver):
         m = Model('Viet_case_2')
         C_max = m.continuous_var(name = 'C_max')
         x = m.binary_var_dict(BpA_idcs, name = 'x')
-        # f = m.continuous_var_dict(BpA_idcs, name = 'f')
+        # x = m.continuous_var_dict(BpA_idcs, ub =1, name = 'x')
         v= m.binary_var_dict(A_idcs, name = 'v')
-        # q = m.binary_var_dict(A_idcs, name = 'q')
-        # d = m.continuous_var(name = 'd', lb = 0)
-        # p = m.continuous_var_dict(BpA_idcs,name = 'p') #fake variable
+
 
         m.minimize(C_max)
         if consider_process_time:

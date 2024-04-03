@@ -8,13 +8,13 @@ import helpers
 import heuristic
 
 import copy
-
+import logging
 import numpy as np
 
 
 
 if __name__ == "__main__":
-
+    logging.basicConfig(format=cfg.LOG_FORMATTER, level=cfg.LOG_LEVEL, datefmt='%d-%b-%y %H:%M:%S')
     """
     SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
@@ -27,12 +27,12 @@ if __name__ == "__main__":
 
     method = 5
 
-    total_robots = 2
+    total_robots = 10
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'lim/100/lc101-5-uniform.csv'
-    data_name = 'data2.csv' 
+    data_name = 'lim/100/lc101-5-uniform.csv'
+    # data_name = 'data2.csv' 
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
     # processed_data = process(raw, method)
     # solve_result = solve_pdpcr(processed_data, total_robots, method)
-
+    
     processed_h = heuristic.process_greedy_1(raw)
     # solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
     solve_result_h_jp = heuristic.solve_greedy_jp_compare_start_time(processed_h, total_robots)
