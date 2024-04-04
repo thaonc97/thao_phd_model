@@ -486,7 +486,6 @@ class TwoOptSolver:
     #This is because c_travel[0][-1] didn't exsist. I added it manually in the get_start_time function
 
 
-
 class VietSolver:
     """Solve PDPCR applying Viet's idea
     """
@@ -597,11 +596,11 @@ class VietSolver:
     def solve(self, total_robots, tasks_each_iteration, consider_process_time):
         self.paths ={i:Path(self.depot) for i in range(total_robots)}
         while self._all_tasks_finished() == False:
-            logging.debug(f'Start solving')
+            logging.info(f'Start solving')
             self._solve_viet(total_robots, tasks_each_iteration, consider_process_time)
-            logging.debug(f'Solved!\n updating paths...')
+            logging.info(f'Solved!\n updating paths...')
             self._update_paths()
-            logging.debug(f'Done\n Removing processed tasks...')
+            logging.info(f'Done\n Removing processed tasks...')
             self._remove_processed_tasks()
         self._robot_returns()
         #TODO
@@ -664,15 +663,15 @@ class VietSolver:
         v= m.binary_var_dict(A_idcs, name = 'v')
         q = m.binary_var_dict(A_idcs, name = 'q')
         d = m.continuous_var(name = 'd', lb = 0)
-        p = m.continuous_var_dict(BpA_idcs,name = 'p') #fake variable
+        # p = m.continuous_var_dict(BpA_idcs,name = 'p') #fake variable
 
         m.minimize(C_max)
         if consider_process_time:
-            m.add_constraints(C_max + (a[i][j] + t[i] + c[j])*v[j] >= (a[i][j]+ t[i] + c[j])*x[i,j] for i in B_idcs for j in A_idcs)
+            m.add_constraints(C_max >= (a[i][j]+ t[i] + c[j])*x[i,j] + cfg.BIG_M1*v[j] for i in B_idcs for j in A_idcs)
         else:
-            m.add_constraints(C_max + (a[i][j] + t[i])*v[j] >= (a[i][j]+ t[i])*x[i,j] for i in B_idcs for j in A_idcs)
+            m.add_constraints(C_max >= (a[i][j]+ t[i])*x[i,j] + cfg.BIG_M1*v[j] for i in B_idcs for j in A_idcs)
 
-        m.add_constraints(C_max >= cfg.BIG_M1*v[j] - cfg.BIG_M1*p[i,j] for j in A_idcs for i in Bp_idcs)
+        # m.add_constraints(C_max >= cfg.BIG_M1*v[j] - cfg.BIG_M1*p[i,j] for j in A_idcs for i in Bp_idcs)
         m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j] for j in A_idcs)
         m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
         m.add_constraints(x[i,j] <= 1 for i in Bp_idcs for j in A_idcs) #Capacity constraint
@@ -683,10 +682,16 @@ class VietSolver:
         m.add_constraints(x[i,j] <= v[j] for i in Bf_idcs for j in A_idcs) # Relation x and v
         m.add_constraint(m.sum(q[j]*n[j] for j in A_idcs) == d) #Acquire flow
 
+        # m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j] for j in A_idcs)
+        # m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
+        # m.add_constraints(x[i,j] <= 1 for i in Bp_idcs for j in A_idcs) #Capacity constraint
+        # m.add_constraint(m.sum((m.sum(x[i,j] for j in A_idcs) for i in Bp_idcs)) == R_A) #Required flow
+        # m.add_constraints(x[i,j] <= v[j] for i in Bf_idcs for j in A_idcs) # Relation x and v
+
         #Constraints regarding p
-        m.add_constraints(p[i,j] <= x[i,j] for i in Bp_idcs for j in A_idcs)
-        m.add_constraints(p[i,j] <= v[j] for i in Bp_idcs for j in A_idcs)
-        m.add_constraints(p[i,j] >= x[i,j] + v[j] -1 for i in Bp_idcs for j in A_idcs)
+        # m.add_constraints(p[i,j] <= x[i,j] for i in Bp_idcs for j in A_idcs)
+        # m.add_constraints(p[i,j] <= v[j] for i in Bp_idcs for j in A_idcs)
+        # m.add_constraints(p[i,j] >= x[i,j] + v[j] -1 for i in Bp_idcs for j in A_idcs)
 
         m.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
         m.time_limit = cfg.SOLVE_TIME
