@@ -800,7 +800,7 @@ class VietSolverOrig(VietSolver):
             self.lastest_case = 1
         else: 
             print(f'R_A = {R_A} > total_robots = {total_robots}, solving second case')
-            self._lastest_solve_result = self._solve_second_case(total_robots, 
+            self._lastest_solve_result = self._solve_second_case_thao(total_robots, 
                                                                  starting_times, 
                                                                  consider_process_time)
             self.lastest_case = 2
@@ -833,10 +833,10 @@ class VietSolverOrig(VietSolver):
 
         m.minimize(C_max)
         if consider_process_time:
-            m.add_constraints(C_max >= (a[i][j] + t[i] + c[j])*x[i,j] + cfg.BIG_M1*v[j] for i in B_idcs for j in A_idcs)
+            m.add_constraints(C_max >= (a[i][j] + t[i] + c[j])*x[i,j]  for i in B_idcs for j in A_idcs)
         else:
             # m.add_constraints(C_max + (a[i][j] + t[i])*v[j] >= (a[i][j]+ t[i])*x[i,j] for i in B_idcs for j in A_idcs)
-            m.add_constraints(C_max  >= (a[i][j]+ t[i])*x[i,j] + cfg.BIG_M1*v[j] for i in B_idcs for j in A_idcs)
+            m.add_constraints(C_max  >= (a[i][j]+ t[i])*x[i,j]  for i in B_idcs for j in A_idcs)
 
         m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j] for j in A_idcs)
         m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
@@ -869,6 +869,70 @@ class VietSolverOrig(VietSolver):
         
         return solve_info
 
+    def _solve_second_case_thao(self,
+                           total_robots,
+                           starting_times :dict,
+                           consider_process_time : bool):
+        
+        # total_robots_required = np.sum([task.n for task in self.tasks_remains]) # This is probably for assign all 
+                                                                                # robots at each iteration case
+        R_A = self._cal_RA() 
+        A_idcs = [task.index for task in self.tasks_remains]
+        B_idcs = [j for j in range(total_robots)]
+        Bf_idcs = [j for j in range(total_robots, R_A)] #Artificial robots
+        Bp_idcs = B_idcs + Bf_idcs
+        BpA_idcs = [(i,j) for i in Bp_idcs for j in A_idcs]
+        BA_idcs = [(i,j) for i in B_idcs for j in A_idcs]
+        BfA_idcs = [(i,j) for i in Bf_idcs for j in A_idcs]
+
+        a = self._construct_a_artificial(total_robots, R_A)
+        t = starting_times
+        c = self.c_operate
+        n ={task.index: task.n for task in self.tasks_remains}
+
+        m = Model('Viet_case_2')
+        C_max = m.continuous_var(name = 'C_max')
+        x = m.binary_var_dict(BpA_idcs, name = 'x')
+        # x = m.continuous_var_dict(BpA_idcs, ub =1, name = 'x')
+        p =m.continuous_var_dict(BpA_idcs, name = 'p')
+        v = m.binary_var_dict(A_idcs, name = 'v')
+
+        m.minimize(C_max)
+        if consider_process_time:
+            m.add_constraints(C_max >= (a[i][j] + t[i] + c[j])*x[i,j] +m.sum(cfg.BIG_M1*p[i,j] for j in A_idcs) for i in B_idcs for j in A_idcs)
+        else:
+            m.add_constraints(C_max  >= (a[i][j]+ t[i])*x[i,j] +m.sum(cfg.BIG_M1*p[i,j] for j in A_idcs) for i in B_idcs for j in A_idcs)
+
+        m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j] for j in A_idcs) 
+        m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
+        m.add_constraints(x[i,j] <= 1 for i in Bp_idcs for j in A_idcs) 
+        m.add_constraint(m.sum((m.sum(x[i,j] for j in A_idcs) for i in Bp_idcs)) == R_A)
+        m.add_constraints(x[i,j] <= v[j] for i in Bf_idcs for j in A_idcs) # Relation x and v
+
+        #Constraints regarding p
+        m.add_constraints(p[i,j] <= x[i,j] for i in Bp_idcs for j in A_idcs)
+        m.add_constraints(p[i,j] <= v[j] for i in Bp_idcs for j in A_idcs)
+        m.add_constraints(p[i,j] >= x[i,j] + v[j] -1 for i in Bp_idcs for j in A_idcs)
+
+        m.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+        m.time_limit = cfg.SOLVE_TIME
+        if cfg.EXPORT_MODEL == True:
+            print(m.export_as_lp())
+        sol = m.solve(log_output = cfg.LOG_OUTPUT)
+        # print(sol.display())
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+        solve_info = {
+            'sol':sol,
+            'x':x,
+            'v':v,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
+        
+        return solve_info
     def _solve_first_case(self, 
                           total_robots, 
                           starting_times :dict, 

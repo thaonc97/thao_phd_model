@@ -32,7 +32,8 @@ if __name__ == "__main__":
 
     data_type = 'csv'
     data_name = 'lim/100/lc101-5-uniform.csv'
-    # data_name = 'data2.csv' 
+    # data_name = 'generated20.csv'  #Check this
+    # data_name = 'data3.csv'  
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
@@ -62,10 +63,10 @@ if __name__ == "__main__":
     c_operate = helpers.create_operate_dict(depot,tasks)
     # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
     # solve_opt.solve(total_robots= total_robots)
-    solve_viet = heuristic.VietSolver(processed_h,c_travel, c_operate)
-    solve_viet.solve(total_robots,3, True)
+    solve_viet = heuristic.VietSolverOrig(processed_h,c_travel, c_operate)
+    solve_viet.solve(total_robots, False)
     print(solve_viet.paths)
-    print(f'makespan: {solve_viet.get_makespan()}')
+    print(f' Vietsolver makespan: {solve_viet.get_makespan()}')
     print('Done')
 
 
