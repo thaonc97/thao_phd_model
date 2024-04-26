@@ -17,7 +17,7 @@ LOG_OUTPUT = False
 EXPORT_MODEL = True
 USE_INDICATOR = False
 RELAXED = False
-BIG_M = 10**7
+BIG_M = 10**4
 
 GEN_COOP_RATE = 0.2
 

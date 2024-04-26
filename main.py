@@ -27,20 +27,18 @@ if __name__ == "__main__":
 
     method = 5
 
-    total_robots = 10
+    total_robots = 2
     random_data = False
 
     data_type = 'csv'
-    data_name = 'lim/100/lc101-5-uniform.csv'
+    data_name = 'data2.csv'
     # data_name = 'generated20.csv'  #Check this
-    # data_name = 'data3.csv'  
+    # data_name = 'lim/200/LC1_2_1-5-uniform.csv'  
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
-    if False:
-        is_depot_task = True
-    else:
-        is_depot_task = False #TODO remove this
+
+    is_depot_task = False 
     if random_data:
         raw = gen_data(total_robots, total_tasks, False, is_depot_task)
     else:
@@ -51,7 +49,7 @@ if __name__ == "__main__":
     # solve_result = solve_pdpcr(processed_data, total_robots, method)
     
     processed_h = heuristic.process_greedy_1(raw)
-    # solve_result_h = heuristic.solve_greedy_1(processed_h, total_robots)
+
     solve_result_h_jp = heuristic.solve_greedy_jp_compare_start_time(processed_h, total_robots)
     solve_result_h_jp.get_makespan()
     print(solve_result_h_jp.paths)
@@ -63,10 +61,17 @@ if __name__ == "__main__":
     c_operate = helpers.create_operate_dict(depot,tasks)
     # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
     # solve_opt.solve(total_robots= total_robots)
-    solve_viet = heuristic.VietSolverOrig(processed_h,c_travel, c_operate)
-    solve_viet.solve(total_robots, False)
-    print(solve_viet.paths)
-    print(f' Vietsolver makespan: {solve_viet.get_makespan()}')
+
+    task_each_ite = 2
+    solve_viet = heuristic.VGeneralizedSolver(processed_h,c_travel, c_operate)
+    sol = solve_viet.solve(total_robots,task_each_ite, False)
+    print(sol.paths)
+    print(f' VGeneralized Solver makespan: {sol.get_makespan()}')
+
+    solve_viet_orig = heuristic.VietSolver(processed_h,c_travel, c_operate)
+    solve_viet_orig.solve(total_robots,task_each_ite, False)
+    print(f'Paths Viet Solver {solve_viet_orig.paths}')
+    print(f' Viet Solver makespan: {solve_viet_orig.get_makespan()}')
     print('Done')
 
 
