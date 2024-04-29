@@ -27,13 +27,13 @@ if __name__ == "__main__":
 
     method = 5
 
-    total_robots = 2
+    total_robots = 8
     random_data = False
 
     data_type = 'csv'
-    data_name = 'data2.csv'
+    # data_name = 'data2.csv'
     # data_name = 'generated20.csv'  #Check this
-    # data_name = 'lim/200/LC1_2_1-5-uniform.csv'  
+    data_name = 'lim/200/LC1_2_1-5-uniform.csv'  
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
@@ -62,9 +62,9 @@ if __name__ == "__main__":
     # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
     # solve_opt.solve(total_robots= total_robots)
 
-    task_each_ite = 2
+    task_each_ite = 'random'
     solve_viet = heuristic.VGeneralizedSolver(processed_h,c_travel, c_operate)
-    sol = solve_viet.solve(total_robots,task_each_ite, False)
+    sol = solve_viet.solve(total_robots,task_each_ite, False, task_range = [1,4])
     print(sol.paths)
     print(f' VGeneralized Solver makespan: {sol.get_makespan()}')
 

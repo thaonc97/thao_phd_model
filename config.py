@@ -26,7 +26,7 @@ DATA_SOURCE = 'wr2'
 BENDER_STRAT = 0
 
 #VIET SOLVER CONFIG
-BIG_M1 = 10**6
+BIG_M1 = 10**4
 
 LOG_LEVEL = "INFO" # DEBUG < INFO < WARNING < ERROR < CRITICAL < FATAL
 #log_fomartter = "%(message)s"

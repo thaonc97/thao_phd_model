@@ -709,10 +709,11 @@ class VietSolver:
 
         m.minimize(C_max +m.sum(cfg.BIG_M1*p[i,j] for j in A_idcs for i in B_idcs))
         if consider_process_time:
-            m.add_constraints(C_max >= (a[i][j] + t[i] + c[j])*x[i,j] for i in Bp_idcs for j in A_idcs)
+            m.add_constraints(C_max >= (a[i][j] + t[i] + c[j])*x[i,j] for i in B_idcs for j in A_idcs)
         else:
-            m.add_constraints(C_max >= (a[i][j] + t[i])*x[i,j] for i in Bp_idcs for j in A_idcs)
+            m.add_constraints(C_max >= (a[i][j] + t[i])*x[i,j] for i in B_idcs for j in A_idcs)
 
+        m.add_constraint(m.sum(x[i,j] for i in B_idcs for j in A_idcs) >= 1)
         m.add_constraints(m.sum(x[i,j] for i in Bp_idcs) == n[j]*q[j] for j in A_idcs) 
         m.add_constraints(m.sum(x[i,j] for j in A_idcs) <= 1 for i in Bp_idcs)
         m.add_constraints(x[i,j] <= 1 for i in Bp_idcs for j in A_idcs) # is this nessessary?
@@ -1024,16 +1025,8 @@ class VietSolverOrig(VietSolver):
 
 class VGeneralizedSolver(VietSolver):
     
-    def solve(self, total_robots, tasks_each_iteration, consider_process_time):
-        self.paths ={i:Path(self.depot) for i in range(total_robots)}
-        while self._all_tasks_finished() == False:
-            logging.info(f'Start solving')
-            self._solve(total_robots,tasks_each_iteration, consider_process_time)
-        self._robot_returns()
-        #TODO
-
-    def solve(self, total_robots, tasks_each_iteration, consider_process_time):
-        "Don't compare process time"
+    def solve(self, total_robots, tasks_each_iteration, consider_process_time, **kwargs):
+        "Do not compare process time"
         depot = self.processed.depot
         tasks = self.processed.tasks
 
@@ -1071,15 +1064,22 @@ class VGeneralizedSolver(VietSolver):
             L_list = [(task_idx,path,cost) for task_idx in L for path,cost in L[task_idx].items()]
             df_L = pd.DataFrame(L_list, columns = ['task_idx', 'path', 'cost']).sort_values('cost')
             sorted_L_list = df_L.values.tolist()
-
+            
+            #Declare variables
             remaining_robots = total_robots
             cur_n = {task.index:0 for task in uninserted}
             best_paths = {task.index:[] for task in uninserted}
             cur_task = {path:[] for path in paths}
-            k = tasks_each_iteration
 
+            if type(tasks_each_iteration) == int:
+                k = tasks_each_iteration
+            elif tasks_each_iteration == 'random':
+                task_range = kwargs.get('task_range')
+                k = np.random.randint(task_range[0],task_range[1])
+                
+            #Choose the task
             for item in sorted_L_list:
-                task_idx, path, cost_if_insert = item # cost if insert
+                task_idx, path, cost_if_insert = item #cost if insert
                 task = idx_task_mapper[task_idx]
                 if task.n > remaining_robots or task_idx in inserted_idcs or path in inserted_paths:
                     continue
