@@ -1,7 +1,7 @@
 """
 Using CPLEX to solve the problem
 """
-
+import copy
 from docplex.mp.model import Model
 import numpy as np
 import pandas as pd
@@ -42,6 +42,12 @@ def solve_vrp_ver2_makespan(data,total_robots, *args, **kwargs):
         solve_result = _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks, *args, c_travel = dist_matrix)
     else:
         solve_result = _cplex_solve_vrp_ver2_makespan(total_robots,depot, expanded_tasks, *args, **kwargs)
+    return solve_result
+
+def solve_flow_ver2_makespan(data,total_robots, *args, **kwargs):
+    depot = data.depot
+    tasks = data.tasks
+    solve_result = _cplex_solve_flow_ver2_makespan(total_robots, depot, tasks, *args, **kwargs)
     return solve_result
 
 def _cplex_solve_vrp_sumofcosts(total_robots,
@@ -331,12 +337,71 @@ def _cplex_solve_vrp_ver2_makespan(total_robots, depot, expanded_tasks, *args, *
     
     return solve_info
 
+def _cplex_solve_flow_ver2_makespan(total_robots,depot,tasks):
+    sink_idx = max([task.index for task in tasks])
+    j0_idx = [0] + [task.index for task in tasks] #jobs
+    j_idx = [task.index for task in tasks] #jobs
+    ij_idx = [(i,j) for i in j0_idx for j in j0_idx if i!=j] 
+    I = total_robots
+    
+    c = helpers.create_task_dist_dict(depot,tasks)
+    c_operate = helpers.create_operate_dict(depot, tasks)
+    n = {task.index:task.n for task in tasks}
+    model = Model("PDPCR Flow Based Makespan")
+    f= model.continuous_var_dict(ij_idx, name = 'f')
+    z = model.continuous_var_dict(j0_idx,lb = 0, name = 'z')
+    if cfg.RELAXED:
+        x = model.continuous_var_dict(ij_idx,ub = 1, name = 'x')
+    else:
+        x = model.binary_var_dict(ij_idx, name = 'x')
+
+    model.add_constraint(model.sum(f[0,v] for v in j_idx if v != sink_idx) == total_robots) #14
+    model.add_constraint(model.sum(f[u,sink_idx] for u in j_idx if u!= sink_idx) == total_robots) #15
+    model.add_constraints(model.sum(f[u,v] for u in j0_idx if u !=v) - model.sum(f[v,vp] for vp in j0_idx if vp !=v) == 0 for v in j0_idx[1:-1]) #16
+    model.add_constraints(model.sum(f[u,v] for u in j0_idx if u !=v) == n[v] for v in j0_idx[1:-1])
+    model.add_constraint(z[0] == 0) #19
+    model.add_constraints(I*x[u,v] >= f[u,v] for (u,v) in ij_idx)
+    model.add_constraints(f[u,v] >= x[u,v] for (u,v) in ij_idx)
+    if cfg.USE_INDICATOR:
+        indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u] +c_operate[u]  +c[u][v]) for (u,v) in ij_idx] #21
+        model.add_indicator_constraints(indicator_SEC) 
+    else:
+
+        big_m = cfg.BIG_M
+        model.add_constraints(z[v] + big_m*(1-x[u,v]) >= z[u] +c_operate[u] + c[u][v] for (u,v) in ij_idx)
+    model.minimize(z[sink_idx])
+    
+    if cfg.BENDER_STRAT:
+        model.parameters.benders.strategy = cfg.BENDER_STRAT
+
+    model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
+    model.time_limit = cfg.SOLVE_TIME
+    if cfg.EXPORT_MODEL == True:
+        print(model.export_as_lp())
+    sol = model.solve(log_output = cfg.LOG_OUTPUT)
+    
+    solved_gap = model.solve_details.mip_relative_gap
+    processed_nodes = model.solve_details.nb_nodes_processed
+    solve_time = model.solve_details.time
+    solve_info = {
+        'sol':sol,
+        'x':x,
+        'f':f,
+        'processed_nodes': processed_nodes,
+        'gap':solved_gap,
+        'solve_time':solve_time
+    }
+    
+    return solve_info
+
+
 SOLVE_METHOD ={
     1: solve_vrp_sumofcosts,
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
     4: solve_vrp_ver2,
-    5: solve_vrp_ver2_makespan
+    5: solve_vrp_ver2_makespan,
+    6: solve_flow_ver2_makespan
 }
 
 def solve_pdpcr(processed_data, total_robots, method :int, *args, **kwargs):
@@ -346,6 +411,7 @@ def solve_pdpcr(processed_data, total_robots, method :int, *args, **kwargs):
     2: solve_flow_makespan,
     3: solve_vrp_makespan,
     4: solve_vrp_ver2
+    5: solve_vrp_ver2_makespan
     }
     """
     solve_method = SOLVE_METHOD[method]

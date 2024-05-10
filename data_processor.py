@@ -183,12 +183,27 @@ def process_vrp_ver2_makespan(raw: Raw):
         processed_data.dist_matrix = create_cost_dict_wr2(raw)
     return processed_data
 
+def process_flow_ver2_makespan(raw: Raw):
+    raw_depot = raw.depot
+    depot_coor = raw_depot.coor
+    depot = Task(depot_coor,depot_coor,0,0,0)
+    tasks = raw.tasks
+    sink = copy.deepcopy(depot)
+    sink.index = tasks[-1].index + 1
+    sink.origin_idx = tasks[-1].index + 1
+    tasks.append(sink)
+    processed_data = Processed(depot, tasks, None, None)
+    if hasattr(raw,'dist_matrix'):
+        processed_data.dist_matrix = create_cost_dict_wr2(raw)
+    return processed_data
+
 PROCESS_METHOD ={
     1: process_vrp_sumofcosts,
     2: process_flow,
     3: process_vrp_makespan,
     4: process_vrp_ver2,
-    5: process_vrp_ver2_makespan
+    5: process_vrp_ver2_makespan,
+    6: process_flow_ver2_makespan
 }
 
 def process(raw, method):
