@@ -28,7 +28,17 @@ BENDER_STRAT = 0
 #VIET SOLVER CONFIG
 BIG_M1 = 10**4
 
+#Config for Tabu seach init
+TABU_TASK_EACH_ITERATION = 3
+TABU_CONSIDER_PROCESS_TIME = False
+TABU_MAX_ITER = 3000
+TABU_NUM_REROUTE_NEIGHBORS = 50
+TABU_NUM_REVERSE_NEIGHBORS = 10
+TABU_MAX_TL_ADD_SIZE = 50
+TABU_MAX_TL_DROP_SIZE = 50
+
 LOG_LEVEL = "INFO" # DEBUG < INFO < WARNING < ERROR < CRITICAL < FATAL
 #log_fomartter = "%(message)s"
 # Nếu muốn thêm thời gian và loglevel thì dùng format bên dưới
 LOG_FORMATTER = "%(asctime)s:%(levelname)s:%(message)s"
+

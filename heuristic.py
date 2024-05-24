@@ -1118,3 +1118,269 @@ class VGeneralizedSolver(VietSolver):
         print(f'Viet generalized sol is {cur_sol.get_makespan().round(2)}')
 
         return cur_sol
+
+
+class TabuSearch:
+    def __init__(self, processed, c_travel, c_operate, init_solution_func = VGeneralizedSolver):
+        self.processed = processed
+        self.c_travel = c_travel
+        self.c_operate = c_operate
+        self.init_solution_func = init_solution_func
+
+    def set_init_func(self, init_solution_func):
+        self.init_solution_func = init_solution_func
+
+    def _get_fitness(self, graph):
+        makespan = self._get_start_time(graph, self.c_travel, self.c_operate)[-1]
+        # fitness = 1/(makespan+0.000001)
+        fitness = makespan
+        return fitness
+
+    def _get_neighbors(self,graph,affected_add,affected_drop):
+        neighbors = []
+        neighbors += self._get_n_reroute_neighbors(
+            graph, cfg.TABU_NUM_REROUTE_NEIGHBORS, affected_add, affected_drop)
+        return neighbors
+
+   
+    def _get_reverse_neighbors(self,graph, num_neighbors):
+        # This is N_reverse in the paper
+        #TODO
+        pass
+
+    def _rerouteable(self, edge1, edge2, descendants):
+        """
+        Check if 2 edges can be applied 2-opt
+        """
+        (a,b) = edge1
+        (c,d) = edge2
+        if a==d or a==c or c==b or c==d:
+            return False
+        elif a in descendants[d]:
+            return False
+        elif c in descendants[b]:
+            return False
+        else:
+            return True
+     
+
+    def _reroute(self,graph, edge1, edge2):
+        (a,b) = edge1
+        (c,d) = edge2
+        w1 = graph[a][b]['weight']
+        w2 = graph[c][d]['weight']
+        reroute_amount = min(w1,w2)
+
+        graph[a][b]['weight'] -= reroute_amount
+        if graph[a][b]['weight'] == 0:
+            graph.remove_edge(a,b)
+
+        graph[c][d]['weight'] -= reroute_amount
+        if graph[c][d]['weight'] == 0:
+            graph.remove_edge(c,d)
+
+        if graph.has_edge(a,d):
+            graph[a][d]['weight'] += reroute_amount
+        else:
+            graph.add_edge(a,d,weight = reroute_amount)
+
+        if graph.has_edge(c,b):
+            graph[c][b]['weight'] += reroute_amount
+        else:
+            graph.add_edge(c,b,weight = reroute_amount)
+
+        return graph
+            
+    def _get_n_reroute_neighbors(self,graph, max_neighbors, affected_add, affected_drop):
+        # This is N_reroute in the paper
+        neighbors = []
+        descendants = {node: nx.descendants(graph,node) for node in graph.nodes}
+        edges = list(graph.edges())
+        np.random.shuffle(edges)
+        num_neighbors = 0
+        for i in range(len(edges)):
+            for j in range(len(edges)):
+                edge1 = edges[i]
+                edge2 = edges[j]
+                if self._rerouteable(edge1, edge2, descendants):
+                    G_p = copy.deepcopy(graph)
+                    G_p = self._reroute(G_p, edge1, edge2)
+                    neighbors.append(G_p)
+                    affected_add[G_p] = [edge1, edge2]
+                    affected_drop[G_p] = [(edge1[0],edge2[1]),(edge2[0],edge1[1])]
+                    num_neighbors += 1
+                    if num_neighbors == max_neighbors:
+                        return neighbors
+        
+        return neighbors
+
+    def _path_to_edges(self, path : list):
+        edges = []
+        cur_len = len(path)
+        if path[0] != 0:
+            edges.append((0,path[0]))
+        for i in range(cur_len - 1):
+            edges.append((path[i],path[i + 1]))
+        # edges.append((path[-1],-1))
+        return edges
+
+    def _paths_to_weighted_edges(self,paths: list): 
+        """
+        extract the edges to the directed graph G from a
+        set of paths. More on section 2 in "Formal construct
+        solution from paths 13-12-2023" document
+        
+        Parameters
+        ----------
+        paths : list
+            list of tuples, every tuple is a path of every robot
+            excluding the sink and the source (nessessary?)
+            
+        Returns
+        -------
+        edges : list
+            list of weighted edges, every element has the form of (source, sink, weight) 
+            
+        """
+        edges = []
+        for path in paths:
+            cur_edges = self._path_to_edges(path)
+            edges += cur_edges
+        # edges = dict((x,edges.count(x)) for x in set(edges))
+        edges = [(edge[0],edge[1], edges.count(edge)) for edge in set(edges)]
+        return edges
+
+    def _get_out_nodes(self,graph):
+        """
+        Get a dictionary of out node from all nodes on a directed graph
+        
+        Parameters
+        ----------
+        graph : nx.DiGraph or nx.MultiDiGraph
+
+
+        Returns
+        -------
+        out_nodes : dict
+            `outnodes[1] = [2,3,69]` means that edges (1,2), (1,3), (1,69) in the graph.
+        """
+        out_nodes = {}
+        nodes = list(graph.nodes())
+        for node in nodes:
+            out_nodes[node] = list(graph.successors(node))
+
+        return out_nodes
+    
+    def _get_start_time(self, graph, c_travel, c_operate):
+        """Get the start time of each task in the graph
+
+        Parameters
+        ----------
+        graph : _type_
+            _description_
+        c_travel : _type_
+            _description_
+        c_operate : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
+        out_nodes = self._get_out_nodes(graph)
+
+        c_operate[-1] = 0
+        c_travel[-1] = {}
+        c_travel[0][-1] = 0
+        for i in c_travel:
+            if i!= 0 and i!=-1:
+                c_travel[i][-1] = c_travel[i][0]
+        
+        z = {}
+        for j in c_operate:
+            z[j] = -np.infty
+        z[0] = 0
+        z[-1] = -np.infty
+        
+        while reversed_topo_order:
+            cur_task = reversed_topo_order.pop()
+            for succ in out_nodes[cur_task]:
+                z_cur = z[cur_task] + c_operate[cur_task] + c_travel[cur_task][succ]
+                if z[succ] < z_cur:
+                    z[succ] = z_cur
+        return z
+
+    def _to_graph(self, paths: list):
+        """
+        Return a networkx *weighted* graph from the set of paths.
+        """
+        G = nx.DiGraph()
+        weighted_edges = self._paths_to_weighted_edges(paths)
+        G.add_weighted_edges_from(weighted_edges)
+        return G
+
+    def _init_solution(self,total_robots):
+        if self.init_solution_func is VGeneralizedSolver:
+            init_instance = self.init_solution_func(
+                self.processed, 
+                self.c_travel, 
+                self.c_operate)
+            
+            init_sol = init_instance.solve(
+            total_robots,
+            cfg.TABU_TASK_EACH_ITERATION,
+            cfg.TABU_CONSIDER_PROCESS_TIME
+        )
+        else:
+            init_sol = self.init_solution_func(
+                self.processed,
+                total_robots
+        )
+            
+        return init_sol
+    
+    def search(self, total_robots, max_iters, tabu_list_size =cfg.TABU_MAX_TL_ADD_SIZE):
+        #TODO placeholder
+        
+        init_sol = self._init_solution(total_robots)
+        init_sol_makespan = init_sol.get_makespan()
+        logging.info(f"Initial makespan: {init_sol_makespan}")
+        idx_paths = init_sol.get_idx_paths(change_sink_idx = True)
+        G = self._to_graph(idx_paths)
+        
+        best_solution = G
+        lastest_best_solution = G
+        best_solution_fitness = self._get_fitness(best_solution)
+        tl_add = []
+        tl_drop = []
+        affected_add = {} #key : graph, value:edges to add to tl_add
+        affected_drop = {} #key : graph, value:edges to add to tl_drop
+        for i in range(max_iters):
+            neighbors = self._get_neighbors(lastest_best_solution,affected_add, affected_drop)
+            best_neighbor = None
+            best_neighbor_fitness = np.inf
+
+            for neighbor in neighbors:
+                if affected_add[neighbor] not in tl_add and affected_drop[neighbor] not in tl_drop: #find a way to check this quickly
+                    neighbor_fitness = self._get_fitness(neighbor)
+                    if best_neighbor is None or neighbor_fitness < best_neighbor_fitness:
+                        best_neighbor = neighbor
+                        best_neighbor_fitness = neighbor_fitness
+
+            if best_neighbor is None:
+                break
+            if best_neighbor_fitness < best_solution_fitness:
+                best_solution = best_neighbor
+                best_solution_fitness = best_neighbor_fitness
+                logging.info(f'Best fitness updated: {best_solution_fitness}')
+
+            lastest_best_solution = best_neighbor
+            tl_add += affected_add[best_neighbor]
+            if len(tl_add) > tabu_list_size:
+                [tl_add.pop(i) for i in range(len(tl_add) - tabu_list_size)]
+
+            if i % 50 == 0:
+                logging.info(f'Iteration {i} done')
+        return best_solution

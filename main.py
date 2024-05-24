@@ -28,13 +28,13 @@ if __name__ == "__main__":
 
     method = 2 #exact method
 
-    total_robots = 7
+    total_robots = 10
     random_data = False
 
     data_type = 'csv'
     # data_name = 'data2.csv'
-    data_name = 'generated18_large.csv'  #Check this
-    # data_name = 'lim/200/LC1_2_1-5-uniform.csv'
+    # data_name = 'generated18_large.csv'  #Check this
+    data_name = 'lim/200/LC1_2_1-5-uniform.csv'
     # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
     total_tasks = 6 # random data
     
@@ -46,16 +46,18 @@ if __name__ == "__main__":
         raw = get_data(data_name, data_type, is_depot_task)
 
     print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
-    processed_data = process(raw, method)
-    solve_result = solve_pdpcr(processed_data, total_robots, method)
-    solve_result['sol'].display()
-    processed_h = heuristic.process_greedy_1(raw)
+    #Solve with CPLEX
+    # processed_data = process(raw, method)
+    # solve_result = solve_pdpcr(processed_data, total_robots, method)
+    # solve_result['sol'].display()
 
+    #Solve with greedy JP
+    processed_h = heuristic.process_greedy_1(raw)
     solve_result_h_jp = heuristic.solve_greedy_jp_compare_start_time(processed_h, total_robots)
     solve_result_h_jp.get_makespan()
     print(solve_result_h_jp.paths)
 
-
+    #Solve with 2-opt
     depot = processed_h.depot
     tasks = processed_h.tasks
     c_travel = helpers.create_task_dist_dict(depot,tasks)
@@ -63,7 +65,8 @@ if __name__ == "__main__":
     # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
     # solve_opt.solve(total_robots= total_robots)
 
-    task_each_ite = 'random'
+    #Solve with Viet generalized Solver
+    # task_each_ite = 'random'
     # solve_viet = heuristic.VGeneralizedSolver(processed_h,c_travel, c_operate)
     # sol = solve_viet.solve(total_robots,task_each_ite, False, task_range = [1,4])
     # print(sol.paths)
@@ -74,6 +77,10 @@ if __name__ == "__main__":
     # print(f'Paths Viet Solver {solve_viet_orig.paths}')
     # print(f' Viet Solver makespan: {solve_viet_orig.get_makespan()}')
     # print('Done')
+
+    #Solve with Tabu search
+    tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
+    tabu.search(total_robots,cfg.TABU_MAX_ITER)
 
 
 def mass_solve_wr2(instance_paths:list, dist_paths:list, total_robots:int, method :int = 5):
