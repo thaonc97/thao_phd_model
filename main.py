@@ -32,10 +32,8 @@ if __name__ == "__main__":
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'data2.csv'
-    # data_name = 'generated18_large.csv'  #Check this
-    data_name = 'lim/200/LC1_2_1-5-uniform.csv'
-    # dist_path = 'wr2/bar-n100-1-dist.csv' #real data
+    # data_name = 'generated18.csv'
+    data_name = 'lim/100/lc105-5-uniform.csv'
     total_tasks = 6 # random data
     
 

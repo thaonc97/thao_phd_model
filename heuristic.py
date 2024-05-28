@@ -4,6 +4,7 @@ import heapq
 import networkx as nx
 import numpy as np
 import pandas as pd
+import time 
 
 import config as cfg
 import helpers
@@ -1140,13 +1141,193 @@ class TabuSearch:
         neighbors = []
         neighbors += self._get_n_reroute_neighbors(
             graph, cfg.TABU_NUM_REROUTE_NEIGHBORS, affected_add, affected_drop)
+        neighbors += self._get_n_reverse_neighbors(
+            graph, cfg.TABU_NUM_REVERSE_NEIGHBORS, affected_add, affected_drop)
         return neighbors
 
    
-    def _get_reverse_neighbors(self,graph, num_neighbors):
-        # This is N_reverse in the paper
-        #TODO
-        pass
+    def _get_n_reverse_neighbors(self, graph, max_neighbors, affected_add, affected_drop):
+        neighbors = []
+        # ni_descendants is a dictionary of descendants that are not neighbor of each node in nx Digraph
+        ni_descendants = {}
+        for node in graph.nodes:
+            successors = list(graph.successors(node))
+            descendants = []
+            for succ in successors:
+                neighbor_descendants = list(nx.descendants(graph,succ))
+                descendants += neighbor_descendants
+            ni_descendants[node] = set(descendants)
+        related_times = self._get_related_times(graph, self.c_travel, self.c_operate)
+        edges = list(graph.edges())
+        np.random.shuffle(edges)
+        num_neighbors = 0
+        for edge in edges:
+            if self._reversable(edge, ni_descendants):
+                G_p = self._reverse(edge, graph, related_times)
+                neighbors.append(G_p)
+                affected_add[G_p] = [edge]
+                affected_drop[G_p] = [(edge[1],edge[0])]
+                num_neighbors += 1
+                if num_neighbors == max_neighbors:
+                    return neighbors
+        
+        return neighbors
+
+    def _get_u(self, edge, graph, related_times):
+        """Get u_i in reverse neighborhood
+
+        Parameters
+        ----------
+        pred : _type_
+            _description_
+        weight_pred : _type_
+            _description_
+        waiting_pred : _type_
+            _description_
+        reverse_weight : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        start_time, waiting_time = related_times
+        (a,b) = edge
+        
+        pred_a = list(graph.predecessors(a))
+        weight_pred_a = {pred:graph[pred][a]['weight'] for pred in pred_a}
+        waiting_pred_a = {pred:waiting_time[(pred,a)] for pred in pred_a}
+        df = pd.DataFrame(columns=['pred','waiting_time', 'weight'])
+        weights = []
+        waitings = []
+        for i in pred_a:
+            weights.append(weight_pred_a[i])
+            waitings.append(waiting_pred_a[i])
+        df['pred'] = pred_a
+        df['waiting_time'] = waitings
+        df['weight'] = weights
+        df = df.sort_values(by='waiting_time', ascending = False)
+
+        sum_weight = 0
+        u_a = []
+        i = 0
+        reverse_weight = graph[a][b]['weight']
+        for weight in df['weight']:
+            sum_weight += weight
+            i += 1
+            if sum_weight >= reverse_weight:
+                break
+        u_a = list(df['pred'][:i])
+            
+        return u_a
+    
+    def _get_v(self, edge, graph, related_times):
+        """Get u_i in reverse neighborhood
+
+        Parameters
+        ----------
+        pred : _type_
+            _description_
+        weight_pred : _type_
+            _description_
+        waiting_pred : _type_
+            _description_
+        reverse_weight : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        start_time, waiting_time = related_times
+        (a,b) = edge
+
+        succ_b = list(graph.successors(b))
+        weight_succ_b = {succ:graph[b][succ]['weight'] for succ in succ_b}
+
+        df = pd.DataFrame(columns=['pred','waiting_time', 'weight'])
+        weights = []
+        succ_c_travel = []
+        for i in succ_b:
+            weights.append(weight_succ_b[i])
+            succ_c_travel.append(self.c_travel[b][i])
+        df['succ'] = succ_b    
+        df['c_travel'] = succ_c_travel
+        df['weight'] = weights
+        
+        df = df.sort_values(by='c_travel', ascending = True)
+        sum_weight = 0
+        chosen_preds = []
+        i = 0
+        reverse_weight = graph[a][b]['weight']
+        for weight in df['weight']:
+            sum_weight += weight
+            i += 1
+            if sum_weight >= reverse_weight:
+                break
+        chosen_preds = list(df['succ'][:i])
+        return chosen_preds
+
+    def _reverse(self,edge, graph, related_times):
+        u_a = self._get_u(edge, graph, related_times)
+        v_b = self._get_v(edge, graph, related_times)
+        graph_prime = copy.deepcopy(graph)
+        (a,b) = edge
+        reverse_weight = graph_prime[a][b]['weight']
+
+        weight_to_remove = reverse_weight
+        for u in u_a:
+            weight_ua = graph_prime[u][a]['weight']
+            cur_weight_to_remove = min(weight_ua, weight_to_remove)
+            graph_prime[u][a]['weight'] -= cur_weight_to_remove
+            if graph_prime[u][a]['weight'] == 0:
+                graph_prime.remove_edge(u,a)
+            if (u,b) in graph_prime.edges():
+                graph_prime[u][b]['weight'] += cur_weight_to_remove
+            else:
+                graph_prime.add_edge(u,b, weight = cur_weight_to_remove)
+            weight_to_remove -= weight_ua
+        
+        weight_to_remove = reverse_weight
+        for v in v_b:
+            weight_bv = graph_prime[b][v]['weight']
+            cur_weight_to_remove = min(weight_bv, weight_to_remove)
+            graph_prime[b][v]['weight'] -= cur_weight_to_remove
+            if graph_prime[b][v]['weight'] == 0:
+                graph_prime.remove_edge(b,v)
+            if (a,v) in graph_prime.edges():
+                graph_prime[a][v]['weight'] += cur_weight_to_remove
+            else:
+                graph_prime.add_edge(a,v, weight = cur_weight_to_remove)
+            weight_to_remove -= weight_bv
+        graph_prime.remove_edge(a,b)
+        graph_prime.add_edge(b,a, weight = reverse_weight)
+
+        return graph_prime
+    
+    def _reversable(self, edge, ni_descendants):
+        """Check if an edge can be reversed,
+
+        Parameters
+        ----------
+        graph : nx.DiGraph or nx.MultiDiGraph
+            the initial graph
+        edge : tuple (int,int)
+            the edge to be check if it can be reversed
+        ni_descendants : dict
+            dictionary of non immediate descendants of each node
+        """
+        (a,b) = edge
+        if b in ni_descendants[a]:
+            return False
+        if b == -1:
+            return False
+        if a == 0:
+            return False
+        else:
+            return True
 
     def _rerouteable(self, edge1, edge2, descendants):
         """
@@ -1154,7 +1335,8 @@ class TabuSearch:
         """
         (a,b) = edge1
         (c,d) = edge2
-        if a==d or a==c or c==b or c==d:
+            
+        if a==d or a==c or b==c or b==d:
             return False
         elif a in descendants[d]:
             return False
@@ -1163,7 +1345,6 @@ class TabuSearch:
         else:
             return True
      
-
     def _reroute(self,graph, edge1, edge2):
         (a,b) = edge1
         (c,d) = edge2
@@ -1311,6 +1492,52 @@ class TabuSearch:
                 if z[succ] < z_cur:
                     z[succ] = z_cur
         return z
+    
+    def _get_related_times(self, graph, c_travel, c_operate):
+        """Get start time, waiting time of each task in the graph
+
+        Parameters
+        ----------
+        graph : _type_
+            _description_
+        c_travel : _type_
+            _description_
+        c_operate : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
+        out_nodes = self._get_out_nodes(graph)
+
+        c_operate[-1] = 0
+        c_travel[-1] = {}
+        c_travel[0][-1] = 0
+        for i in c_travel:
+            if i!= 0 and i!=-1:
+                c_travel[i][-1] = c_travel[i][0]
+        
+        z = {} #z[i] is the start time of task i
+        for j in c_operate:
+            z[j] = -np.infty
+        z[0] = 0
+        z[-1] = -np.infty
+        while reversed_topo_order:
+            cur_task = reversed_topo_order.pop()
+            for succ in out_nodes[cur_task]:
+                z_cur = z[cur_task] + c_operate[cur_task] + c_travel[cur_task][succ]
+                if z[succ] < z_cur:
+                    z[succ] = z_cur
+        
+        edges = list(graph.edges())
+        waits = {} # w[(a,b)] is the waitng time of robots start from taks a to task b on task b
+        for edge in edges:
+            (a,b) = edge
+            waits[edge] = z[b] - z[a] - c_operate[a] - c_travel[a][b] 
+        return z, waits
 
     def _to_graph(self, paths: list):
         """
@@ -1330,8 +1557,8 @@ class TabuSearch:
             
             init_sol = init_instance.solve(
             total_robots,
-            cfg.TABU_TASK_EACH_ITERATION,
-            cfg.TABU_CONSIDER_PROCESS_TIME
+            cfg.TABU_INIT_TASK_EACH_ITERATION,
+            cfg.TABU_INIT_CONSIDER_PROCESS_TIME
         )
         else:
             init_sol = self.init_solution_func(
@@ -1340,36 +1567,67 @@ class TabuSearch:
         )
             
         return init_sol
-    
-    def search(self, total_robots, max_iters, tabu_list_size =cfg.TABU_MAX_TL_ADD_SIZE):
-        #TODO placeholder
+
+    def _is_tabu(self, affected_add, affected_drop, tl_add, tl_drop):
+        if len(affected_add) == 2: #reroute
+            (a,b),(c,d) = affected_add
+            if (a,d) in tl_add or (c,b) in tl_add:
+                return True
+            if (a,b) in tl_drop or (c,d) in tl_drop:
+                return True
+        if len(affected_add) == 1: #reverse
+            (a,b) = affected_add[0]
+            if (b,a) in tl_add:
+                return True
+            if (a,b) in tl_drop:
+                return True
         
+        return False
+
+    def _log_config(self):
+        if cfg.TABU_LOG_PARAMETERES:
+            logging.info(f'TABU SEARCH PARAMETERS')
+            logging.info(f'RANDOM_SEED: {cfg.RND_SEED}')
+            logging.info(f'NUM_REVERSE_NEIGHBORS: {cfg.TABU_NUM_REVERSE_NEIGHBORS}')
+            logging.info(f'NUM_REROUTE_NEIGHBORS: {cfg.TABU_NUM_REROUTE_NEIGHBORS}')
+            logging.info(f'MAX_TL_ADD_SIZE: {cfg.TABU_MAX_TL_ADD_SIZE}')
+            logging.info(f'MAX_TL_DROP_SIZE: {cfg.TABU_MAX_TL_DROP_SIZE}')
+            logging.info(f'MAX_ITER: {cfg.TABU_MAX_ITER}')
+
+    def check_weight_zero(self, graph):
+        for a,b,info in graph.edges(data = True):
+            if info['weight'] == 0:
+                logging.info(f'Edge {a,b} has weight 0')
+
+    def search(self, total_robots, max_iters, tabu_list_size =cfg.TABU_MAX_TL_ADD_SIZE):
+        self._log_config()
         init_sol = self._init_solution(total_robots)
         init_sol_makespan = init_sol.get_makespan()
         logging.info(f"Initial makespan: {init_sol_makespan}")
         idx_paths = init_sol.get_idx_paths(change_sink_idx = True)
         G = self._to_graph(idx_paths)
-        
+
         best_solution = G
         lastest_best_solution = G
         best_solution_fitness = self._get_fitness(best_solution)
         tl_add = []
         tl_drop = []
-        affected_add = {} #key : graph, value:edges to add to tl_add
-        affected_drop = {} #key : graph, value:edges to add to tl_drop
         for i in range(max_iters):
-            neighbors = self._get_neighbors(lastest_best_solution,affected_add, affected_drop)
+            affected_add = {} #key : graph, value:edges to add to tl_add
+            affected_drop = {} #key : graph, value:edges to add to tl_drop
+            neighbors = self._get_neighbors(lastest_best_solution, affected_add, affected_drop)
             best_neighbor = None
             best_neighbor_fitness = np.inf
 
             for neighbor in neighbors:
-                if affected_add[neighbor] not in tl_add and affected_drop[neighbor] not in tl_drop: #find a way to check this quickly
+                if  not self._is_tabu(affected_add[neighbor], affected_drop[neighbor],tl_add, tl_drop): #TODO find a way to check this quickly
                     neighbor_fitness = self._get_fitness(neighbor)
                     if best_neighbor is None or neighbor_fitness < best_neighbor_fitness:
                         best_neighbor = neighbor
                         best_neighbor_fitness = neighbor_fitness
 
             if best_neighbor is None:
+                logging.info(f'No neighbor found')
                 break
             if best_neighbor_fitness < best_solution_fitness:
                 best_solution = best_neighbor
@@ -1378,9 +1636,12 @@ class TabuSearch:
 
             lastest_best_solution = best_neighbor
             tl_add += affected_add[best_neighbor]
+            tl_drop += affected_drop[best_neighbor]
             if len(tl_add) > tabu_list_size:
+                # logging.info(f"Removing {len(tl_add) - tabu_list_size} item from tb list")
                 [tl_add.pop(i) for i in range(len(tl_add) - tabu_list_size)]
-
-            if i % 50 == 0:
+            if len(tl_drop) > tabu_list_size:
+                [tl_drop.pop(i) for i in range(len(tl_drop) - tabu_list_size)]
+            if i % cfg.TABU_LOG_EVERY_ITERATIONS == 0:
                 logging.info(f'Iteration {i} done')
         return best_solution
