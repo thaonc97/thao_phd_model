@@ -1034,9 +1034,9 @@ class VGeneralizedSolver(VietSolver):
         c_travel = copy.deepcopy(self.c_travel)
         c_operate = copy.deepcopy(self.c_operate)
         c_travel_back  ={}
-        for i in range(len(c_travel)):
-            c_travel[i].pop(i)
+        for i in c_travel:
             try:
+                c_travel[i].pop(i)
                 c_travel_back[i] = c_travel[i].pop(0)
             except:
                 pass
@@ -1146,7 +1146,7 @@ class TabuSearch:
         return neighbors
 
    
-    def _get_n_reverse_neighbors(self, graph, max_neighbors, affected_add, affected_drop):
+    def _get_n_reverse_neighbors(self, graph, max_neighbors, affected_add, affected_drop, on_critical = cfg.TABU_REVERSE_ON_CRITICAL):
         neighbors = []
         # ni_descendants is a dictionary of descendants that are not neighbor of each node in nx Digraph
         ni_descendants = {}
@@ -1158,7 +1158,12 @@ class TabuSearch:
                 descendants += neighbor_descendants
             ni_descendants[node] = set(descendants)
         related_times = self._get_related_times(graph, self.c_travel, self.c_operate)
-        edges = list(graph.edges())
+
+        if on_critical:
+            edges = self._get_critical_edges(graph,self.c_travel,self.c_operate)
+        else:
+            edges = list(graph.edges())
+
         np.random.shuffle(edges)
         num_neighbors = 0
         for edge in edges:
@@ -1372,17 +1377,22 @@ class TabuSearch:
 
         return graph
             
-    def _get_n_reroute_neighbors(self,graph, max_neighbors, affected_add, affected_drop):
+    def _get_n_reroute_neighbors(self,graph, max_neighbors, affected_add, affected_drop, on_critical = cfg.TABU_REROUTE_ON_CRITICAL):
         # This is N_reroute in the paper
         neighbors = []
         descendants = {node: nx.descendants(graph,node) for node in graph.nodes}
-        edges = list(graph.edges())
-        np.random.shuffle(edges)
+        if on_critical:
+            edges_i = self._get_critical_edges(graph,self.c_travel,self.c_operate)
+        else:
+            edges_i = list(graph.edges())
+        edges_j = list(graph.edges())
+        np.random.shuffle(edges_i)
+        np.random.shuffle(edges_j)
         num_neighbors = 0
-        for i in range(len(edges)):
-            for j in range(len(edges)):
-                edge1 = edges[i]
-                edge2 = edges[j]
+        for i in range(len(edges_i)):
+            for j in range(len(edges_j)):
+                edge1 = edges_i[i]
+                edge2 = edges_j[j]
                 if self._rerouteable(edge1, edge2, descendants):
                     G_p = copy.deepcopy(graph)
                     G_p = self._reroute(G_p, edge1, edge2)
@@ -1471,7 +1481,9 @@ class TabuSearch:
         """
         reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
         out_nodes = self._get_out_nodes(graph)
-
+        # c_travel = copy.deepcopy(c_travel)
+        # c_operate = copy.deepcopy(c_operate)
+        
         c_operate[-1] = 0
         c_travel[-1] = {}
         c_travel[0][-1] = 0
@@ -1512,7 +1524,8 @@ class TabuSearch:
         """
         reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
         out_nodes = self._get_out_nodes(graph)
-
+        # c_travel = copy.deepcopy(c_travel)
+        # c_operate = copy.deepcopy(c_operate)
         c_operate[-1] = 0
         c_travel[-1] = {}
         c_travel[0][-1] = 0
@@ -1539,6 +1552,23 @@ class TabuSearch:
             waits[edge] = z[b] - z[a] - c_operate[a] - c_travel[a][b] 
         return z, waits
 
+    def _get_critical_edges(self, graph_sol: nx.DiGraph, c_travel, c_operate:dict):
+        z,w = self._get_related_times(graph_sol, c_travel, c_operate)
+        # Find the critical path of graph_sol(nx.DiGraph) and return the path, the start time of each task is in z[i] is the start time of task i,w[(i,j)] is the waiting time of task i to j
+        # Get predessors of node -1 in graph_sol (the lastest task in the graph_sol)
+        cur_task = -1
+        critical_edges = []
+        while cur_task !=0:
+            cur_preds = list(graph_sol.predecessors(cur_task))
+            for pred in cur_preds:
+                cur_w  = w[(pred,cur_task)]
+                #compare cur_w with 0 with a small epsilon
+                if np.abs(cur_w) <= 0.0001:
+                    critical_edges.append((pred,cur_task))
+                    cur_task = pred
+                    break
+        return critical_edges
+
     def _to_graph(self, paths: list):
         """
         Return a networkx *weighted* graph from the set of paths.
@@ -1555,11 +1585,20 @@ class TabuSearch:
                 self.c_travel, 
                 self.c_operate)
             
-            init_sol = init_instance.solve(
-            total_robots,
-            cfg.TABU_INIT_TASK_EACH_ITERATION,
-            cfg.TABU_INIT_CONSIDER_PROCESS_TIME
-        )
+            cur_best_makespan = np.infty
+            for i in range(cfg.VIET_RANDOM_ITE):
+        #     init_sol = init_instance.solve(
+        #     total_robots,
+        #     cfg.TABU_INIT_TASK_EACH_ITERATION,
+        #     cfg.TABU_INIT_CONSIDER_PROCESS_TIME
+        # )
+                solve_viet = VGeneralizedSolver(self.processed, self.c_travel, self.c_operate)
+                cur_sol = solve_viet.solve(total_robots,'random',cfg.TABU_INIT_CONSIDER_PROCESS_TIME,task_range=[1,4])
+                makespan = cur_sol.get_makespan()
+        
+                if makespan < cur_best_makespan:
+                    init_sol  = cur_sol
+                    cur_best_makespan = makespan
         else:
             init_sol = self.init_solution_func(
                 self.processed,
@@ -1567,6 +1606,7 @@ class TabuSearch:
         )
             
         return init_sol
+    
 
     def _is_tabu(self, affected_add, affected_drop, tl_add, tl_drop):
         if len(affected_add) == 2: #reroute
@@ -1593,6 +1633,10 @@ class TabuSearch:
             logging.info(f'MAX_TL_ADD_SIZE: {cfg.TABU_MAX_TL_ADD_SIZE}')
             logging.info(f'MAX_TL_DROP_SIZE: {cfg.TABU_MAX_TL_DROP_SIZE}')
             logging.info(f'MAX_ITER: {cfg.TABU_MAX_ITER}')
+            logging.info(f'FIND_FROM_ELITE_AFTER: {cfg.TABU_FIND_FROM_ELITE_AFTER}')
+            logging.info(f'REROUTE_ON_CRITICAL: {cfg.TABU_REROUTE_ON_CRITICAL}')
+            logging.info(f'REVERSE_ON_CRITICAL: {cfg.TABU_REVERSE_ON_CRITICAL}')
+            
 
     def check_weight_zero(self, graph):
         for a,b,info in graph.edges(data = True):
@@ -1612,6 +1656,7 @@ class TabuSearch:
         best_solution_fitness = self._get_fitness(best_solution)
         tl_add = []
         tl_drop = []
+        i_no_update = 0
         for i in range(max_iters):
             affected_add = {} #key : graph, value:edges to add to tl_add
             affected_drop = {} #key : graph, value:edges to add to tl_drop
@@ -1633,6 +1678,10 @@ class TabuSearch:
                 best_solution = best_neighbor
                 best_solution_fitness = best_neighbor_fitness
                 logging.info(f'Best fitness updated: {best_solution_fitness}')
+                i_no_update = 0
+            else:
+                i_no_update += 1
+
 
             lastest_best_solution = best_neighbor
             tl_add += affected_add[best_neighbor]
@@ -1644,4 +1693,30 @@ class TabuSearch:
                 [tl_drop.pop(i) for i in range(len(tl_drop) - tabu_list_size)]
             if i % cfg.TABU_LOG_EVERY_ITERATIONS == 0:
                 logging.info(f'Iteration {i} done')
-        return best_solution
+
+
+            if i_no_update == cfg.TABU_FIND_FROM_ELITE_AFTER:
+                lastest_best_solution = best_solution
+                logging.info(f'No update for {cfg.TABU_FIND_FROM_ELITE_AFTER} iterations, re-search from best solution')
+                # i_no_update = 0
+            
+            if i_no_update == cfg.TABU_RESTART_AFTER:
+                logging.info(f'No update for {cfg.TABU_RESTART_AFTER} iterations, restarting from initial solution')
+                cur_best_makespan = np.infty
+                for i in range(cfg.VIET_RANDOM_ITE):
+                    solve_viet = VGeneralizedSolver(self.processed, self.c_travel, self.c_operate)
+                    sol = solve_viet.solve(total_robots,'random',cfg.TABU_INIT_CONSIDER_PROCESS_TIME,task_range=[1,3])
+                    makespan = sol.get_makespan()
+                    if makespan < cur_best_makespan:
+                        best_sol  = sol
+                        best_makespan = makespan
+
+                idx_paths = best_sol.get_idx_paths(change_sink_idx = True)
+                G = self._to_graph(idx_paths)
+                # best_solution = G
+                lastest_best_solution = G
+                # best_solution_fitness = self._get_fitness(best_solution)
+
+                i_no_update = 0
+        logging.info(f'Best solution found: {best_solution_fitness}')
+        return best_solution, best_solution_fitness

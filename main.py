@@ -26,14 +26,14 @@ if __name__ == "__main__":
     }
     """
 
-    method = 2 #exact method
+    method = 6 #exact method
 
-    total_robots = 10
+    total_robots = 2
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'generated18.csv'
-    data_name = 'lim/100/lc105-5-uniform.csv'
+    data_name = 'generated19.csv'
+    # data_name = 'lim/100/lc101-5-uniform.csv'
     total_tasks = 6 # random data
     
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     else:
         raw = get_data(data_name, data_type, is_depot_task)
 
-    print(f'Solving for {total_robots} robots and {len(raw.tasks)} tasks')
+    logging.info(f'Solving data {data_name} with {total_robots} robots and {len(raw.tasks)} tasks')
     #Solve with CPLEX
     # processed_data = process(raw, method)
     # solve_result = solve_pdpcr(processed_data, total_robots, method)
