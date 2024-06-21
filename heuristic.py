@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import time 
+import os
 
 import config as cfg
 import helpers
@@ -1377,12 +1378,21 @@ class TabuSearch:
 
         return graph
             
-    def _get_n_reroute_neighbors(self,graph, max_neighbors, affected_add, affected_drop, on_critical = cfg.TABU_REROUTE_ON_CRITICAL):
+    def _get_n_reroute_neighbors(
+            self,
+            graph, 
+            max_neighbors, 
+            affected_add, 
+            affected_drop, 
+            on_critical = cfg.TABU_REROUTE_ON_CRITICAL,
+            longest_dist =cfg.TABU_REROUTE_LONGEST_EDGE):
         # This is N_reroute in the paper
         neighbors = []
         descendants = {node: nx.descendants(graph,node) for node in graph.nodes}
         if on_critical:
             edges_i = self._get_critical_edges(graph,self.c_travel,self.c_operate)
+            if longest_dist:
+                edges_i = self._get_longest_critical_edge(edges_i,self.c_travel)
         else:
             edges_i = list(graph.edges())
         edges_j = list(graph.edges())
@@ -1569,6 +1579,16 @@ class TabuSearch:
                     break
         return critical_edges
 
+    def _get_longest_critical_edge(self,edges,c_travel):
+        longest_edge = None
+        longest_dist = -np.infty
+        for edge in edges:
+            (a,b) = edge
+            if c_travel[a][b] > longest_dist:
+                longest_dist = c_travel[a][b]
+                longest_edge = edge
+        return [longest_edge]
+    
     def _to_graph(self, paths: list):
         """
         Return a networkx *weighted* graph from the set of paths.
@@ -1607,7 +1627,7 @@ class TabuSearch:
             
         return init_sol
     
-
+    
     def _is_tabu(self, affected_add, affected_drop, tl_add, tl_drop):
         if len(affected_add) == 2: #reroute
             (a,b),(c,d) = affected_add
@@ -1634,14 +1654,41 @@ class TabuSearch:
             logging.info(f'MAX_TL_DROP_SIZE: {cfg.TABU_MAX_TL_DROP_SIZE}')
             logging.info(f'MAX_ITER: {cfg.TABU_MAX_ITER}')
             logging.info(f'FIND_FROM_ELITE_AFTER: {cfg.TABU_FIND_FROM_ELITE_AFTER}')
+            logging.info(f'RESTART_AFTER: {cfg.TABU_RESTART_AFTER}')
             logging.info(f'REROUTE_ON_CRITICAL: {cfg.TABU_REROUTE_ON_CRITICAL}')
             logging.info(f'REVERSE_ON_CRITICAL: {cfg.TABU_REVERSE_ON_CRITICAL}')
+            logging.info(f'REVERSE_CRITICAL_LONGEST_EDGE: {cfg.TABU_REROUTE_LONGEST_EDGE}')
             
-
     def check_weight_zero(self, graph):
         for a,b,info in graph.edges(data = True):
             if info['weight'] == 0:
                 logging.info(f'Edge {a,b} has weight 0')
+
+    def save_fitness_progress(self, data_name):
+        # Save the best fitness progress to a txt file
+        cfg_info = [f'RANDOM_SEED: {cfg.RND_SEED}',
+                    f'NUM_REVERSE_NEIGHBORS: {cfg.TABU_NUM_REVERSE_NEIGHBORS}',
+                    f'NUM_REROUTE_NEIGHBORS: {cfg.TABU_NUM_REROUTE_NEIGHBORS}',
+                    f'MAX_TL_ADD_SIZE: {cfg.TABU_MAX_TL_ADD_SIZE}',
+                    f'MAX_TL_DROP_SIZE: {cfg.TABU_MAX_TL_DROP_SIZE}',
+                    f'MAX_ITER: {cfg.TABU_MAX_ITER}',
+                    f'FIND_FROM_ELITE_AFTER: {cfg.TABU_FIND_FROM_ELITE_AFTER}',
+                    f'RESTART_AFTER: {cfg.TABU_RESTART_AFTER}',
+                    f'REROUTE_ON_CRITICAL: {cfg.TABU_REROUTE_ON_CRITICAL}',
+                    f'REVERSE_ON_CRITICAL: {cfg.TABU_REVERSE_ON_CRITICAL}',
+                    f'REVERSE_CRITICAL_LONGEST_EDGE: {cfg.TABU_REROUTE_LONGEST_EDGE}',
+                    "SOLVE_RESULT"
+                    ]
+        
+        best_fitnesses_with_cfg = cfg_info + self.best_fitnesses
+        cur_fitnesses_with_cfg = cfg_info + self.cur_fitnesses
+        best_fitness_file_name = f'{data_name}_best_fitnesses'
+        cur_fitnesses_file_name = f'{data_name}_cur_fitnesses'
+        i = 0
+        while os.path.exists(f'solve_results/tabu/best_fitnesses/{best_fitness_file_name}{i}.txt'):
+            i += 1
+        np.savetxt(f'solve_results/tabu/best_fitnesses/{best_fitness_file_name}{i}.txt', best_fitnesses_with_cfg,fmt='%s')
+        np.savetxt(f'solve_results/tabu/cur_fitnesses/{cur_fitnesses_file_name}{i}.txt', cur_fitnesses_with_cfg,fmt='%s')
 
     def search(self, total_robots, max_iters, tabu_list_size =cfg.TABU_MAX_TL_ADD_SIZE):
         self._log_config()
@@ -1657,6 +1704,8 @@ class TabuSearch:
         tl_add = []
         tl_drop = []
         i_no_update = 0
+        best_fitnesses = [best_solution_fitness]
+        cur_fitnesses = [best_solution_fitness]
         for i in range(max_iters):
             affected_add = {} #key : graph, value:edges to add to tl_add
             affected_drop = {} #key : graph, value:edges to add to tl_drop
@@ -1707,16 +1756,23 @@ class TabuSearch:
                     solve_viet = VGeneralizedSolver(self.processed, self.c_travel, self.c_operate)
                     sol = solve_viet.solve(total_robots,'random',cfg.TABU_INIT_CONSIDER_PROCESS_TIME,task_range=[1,3])
                     makespan = sol.get_makespan()
+                    idx_paths = sol.get_idx_paths(change_sink_idx = True)
+                    G = self._to_graph(idx_paths)
                     if makespan < cur_best_makespan:
-                        best_sol  = sol
-                        best_makespan = makespan
-
-                idx_paths = best_sol.get_idx_paths(change_sink_idx = True)
-                G = self._to_graph(idx_paths)
-                # best_solution = G
+                        cur_best  = G
+                        cur_best_makespan = makespan
+                
+                if cur_best_makespan < best_solution_fitness:
+                    best_solution = cur_best
+                    best_solution_fitness = cur_best_makespan
+                    
                 lastest_best_solution = G
-                # best_solution_fitness = self._get_fitness(best_solution)
-
                 i_no_update = 0
+            
+            best_fitnesses.append(best_solution_fitness)
+            cur_fitnesses.append(best_neighbor_fitness)
+        
+        self.best_fitnesses = best_fitnesses
+        self.cur_fitnesses = cur_fitnesses
         logging.info(f'Best solution found: {best_solution_fitness}')
         return best_solution, best_solution_fitness

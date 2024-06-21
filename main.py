@@ -32,7 +32,7 @@ if __name__ == "__main__":
     random_data = False
 
     data_type = 'csv'
-    data_name = 'generated19.csv'
+    data_name = 'generated18.csv'
     # data_name = 'lim/100/lc101-5-uniform.csv'
     total_tasks = 6 # random data
     
@@ -79,6 +79,8 @@ if __name__ == "__main__":
     #Solve with Tabu search
     tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
     tabu.search(total_robots,cfg.TABU_MAX_ITER)
+    if cfg.TABU_SAVE_FITNESSES:
+        tabu.save_fitness_progress(data_name)
 
 
 def mass_solve_wr2(instance_paths:list, dist_paths:list, total_robots:int, method :int = 5):
