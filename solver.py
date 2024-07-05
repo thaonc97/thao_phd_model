@@ -145,13 +145,13 @@ def _cplex_solve_flow_makespan(total_robots,
         model.add_constraints(z[v] + big_m*(1-x[u,v]) >= z[u] +c[u][v] for (u,v) in edge_travels)
     model.minimize(z[sink_idx])
     
-    if cfg.BENDER_STRAT:
+    if cfg.BENDER_STRAT !=-1:
         model.parameters.benders.strategy = cfg.BENDER_STRAT
-
     model.parameters.mip.tolerances.mipgap = cfg.SOLVE_GAP
     model.time_limit = cfg.SOLVE_TIME
     if cfg.EXPORT_MODEL == True:
         print(model.export_as_lp())
+
     sol = model.solve(log_output = cfg.LOG_OUTPUT)
     
     solved_gap = model.solve_details.mip_relative_gap
@@ -339,37 +339,43 @@ def _cplex_solve_vrp_ver2_makespan(total_robots, depot, expanded_tasks, *args, *
 
 def _cplex_solve_flow_ver2_makespan(total_robots,depot,tasks):
     sink_idx = max([task.index for task in tasks])
-    j0_idx = [0] + [task.index for task in tasks] #jobs
-    j_idx = [task.index for task in tasks] #jobs
-    ij_idx = [(i,j) for i in j0_idx for j in j0_idx if i!=j] 
+    source_tasks = [0] + [task.index for task in tasks if task.index != sink_idx] #source + tasks
+    source_tasks_sink = [0] + [task.index for task in tasks] #source + tasks + sink
+    tasks_sink = [task.index for task in tasks] #tasks + sink
+    ij_idx = [(i,j) for i in source_tasks_sink for j in source_tasks_sink if i!=j] 
     I = total_robots
     
     c = helpers.create_task_dist_dict(depot,tasks)
     c_operate = helpers.create_operate_dict(depot, tasks)
     n = {task.index:task.n for task in tasks}
+    n[0] = total_robots
+    n[sink_idx] = total_robots
     model = Model("PDPCR Flow Based Makespan")
     f= model.continuous_var_dict(ij_idx, name = 'f')
-    z = model.continuous_var_dict(j0_idx,lb = 0, name = 'z')
+    z = model.continuous_var_dict(source_tasks_sink,lb = 0, name = 'z')
     if cfg.RELAXED:
         x = model.continuous_var_dict(ij_idx,ub = 1, name = 'x')
     else:
         x = model.binary_var_dict(ij_idx, name = 'x')
 
-    model.add_constraint(model.sum(f[0,v] for v in j_idx if v != sink_idx) == total_robots) #14
-    model.add_constraint(model.sum(f[u,sink_idx] for u in j_idx if u!= sink_idx) == total_robots) #15
-    model.add_constraints(model.sum(f[u,v] for u in j0_idx if u !=v) - model.sum(f[v,vp] for vp in j0_idx if vp !=v) == 0 for v in j0_idx[1:-1]) #16
-    model.add_constraints(model.sum(f[u,v] for u in j0_idx if u !=v) == n[v] for v in j0_idx[1:-1])
-    model.add_constraint(z[0] == 0) #19
-    model.add_constraints(I*x[u,v] >= f[u,v] for (u,v) in ij_idx)
-    model.add_constraints(f[u,v] >= x[u,v] for (u,v) in ij_idx)
+    model.add_constraint(z[0] == 0) #1
+    model.add_constraint(model.sum(f[0,v] for v in tasks_sink) == total_robots) #2
+    model.add_constraint(model.sum(f[u,sink_idx] for u in source_tasks) == total_robots) #2
+    # model.add_constraints(model.sum(f[u,v] for u in source_tasks_sink if u !=v) - model.sum(f[v,vp] for vp in source_tasks_sink if vp !=v) == 0 for v in source_tasks_sink[1:-1]) #3
+    model.add_constraints(model.sum(f[u,v] for u in source_tasks if u !=v) == n[v] for v in tasks_sink[:-1]) #3
+    model.add_constraints(model.sum(f[u,v] for v in tasks_sink if u !=v) == n[u] for u in source_tasks[1:]) #3
+
     if cfg.USE_INDICATOR:
-        indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u] +c_operate[u]  +c[u][v]) for (u,v) in ij_idx] #21
+        indicator_SEC = [model.indicator_constraint(x[u,v],z[v] >=z[u] +c_operate[u]  +c[u][v]) for (u,v) in ij_idx] #4
         model.add_indicator_constraints(indicator_SEC) 
     else:
-
         big_m = cfg.BIG_M
-        model.add_constraints(z[v] + big_m*(1-x[u,v]) >= z[u] +c_operate[u] + c[u][v] for (u,v) in ij_idx)
+        model.add_constraints(z[v] + big_m*(1-x[u,v]) >= z[u] +c_operate[u] + c[u][v] for u in source_tasks for v in tasks_sink if u !=v)#4
     model.minimize(z[sink_idx])
+
+    model.add_constraints(n[u]*x[u,v] >= f[u,v] for u in source_tasks for v in tasks_sink if u !=v) #5
+    model.add_constraints(f[u,v] >= x[u,v] for u in source_tasks for v in tasks_sink if u !=v) #6
+
     
     if cfg.BENDER_STRAT:
         model.parameters.benders.strategy = cfg.BENDER_STRAT

@@ -70,6 +70,17 @@ def cal_big_m(nodes):
             pass
     return big_m
 
+def cal_big_m_tasks(nodes,c_travel,c_operate):
+    node_idx_mapper = {node.index: node for node in nodes}
+    c = create_cost_dict(nodes,node_idx_mapper)
+    big_m = 0
+    for node in c_travel:
+        try:
+            big_m += max(c[node].values())
+        except ValueError:
+            pass
+    return big_m
+
 
 def create_cost_dict_wr2(raw_with_dist_travel):
     dist_matrix = raw_with_dist_travel.distance_matrix

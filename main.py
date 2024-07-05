@@ -28,12 +28,12 @@ if __name__ == "__main__":
 
     method = 6 #exact method
 
-    total_robots = 2
+    total_robots = 10 
     random_data = False
 
     data_type = 'csv'
-    data_name = 'generated18.csv'
-    # data_name = 'lim/100/lc101-5-uniform.csv'
+    # data_name = 'generated1.csv'
+    data_name = 'lim/100/lc101-5-uniform.csv'
     total_tasks = 6 # random data
     
 
@@ -44,22 +44,24 @@ if __name__ == "__main__":
         raw = get_data(data_name, data_type, is_depot_task)
 
     logging.info(f'Solving data {data_name} with {total_robots} robots and {len(raw.tasks)} tasks')
-    #Solve with CPLEX
-    # processed_data = process(raw, method)
-    # solve_result = solve_pdpcr(processed_data, total_robots, method)
-    # solve_result['sol'].display()
+    # Solve with CPLEX
+    processed_data = process(raw, method)
+    solve_result = solve_pdpcr(processed_data, total_robots, method)
+    solve_result['sol'].display()
 
-    #Solve with greedy JP
+    
     processed_h = heuristic.process_greedy_1(raw)
+    #Solve with greedy JP
     solve_result_h_jp = heuristic.solve_greedy_jp_compare_start_time(processed_h, total_robots)
     solve_result_h_jp.get_makespan()
     print(solve_result_h_jp.paths)
 
-    #Solve with 2-opt
+    
     depot = processed_h.depot
     tasks = processed_h.tasks
     c_travel = helpers.create_task_dist_dict(depot,tasks)
     c_operate = helpers.create_operate_dict(depot,tasks)
+    #Solve with 2-opt
     # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
     # solve_opt.solve(total_robots= total_robots)
 
@@ -77,10 +79,10 @@ if __name__ == "__main__":
     # print('Done')
 
     #Solve with Tabu search
-    tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
-    tabu.search(total_robots,cfg.TABU_MAX_ITER)
-    if cfg.TABU_SAVE_FITNESSES:
-        tabu.save_fitness_progress(data_name)
+    # tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
+    # tabu.search(total_robots,cfg.TABU_MAX_ITER)
+    # if cfg.TABU_SAVE_FITNESSES:
+    #     tabu.save_fitness_progress(data_name)
 
 
 def mass_solve_wr2(instance_paths:list, dist_paths:list, total_robots:int, method :int = 5):
