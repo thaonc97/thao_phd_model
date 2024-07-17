@@ -1138,7 +1138,7 @@ class TabuSearch:
         fitness = makespan
         return fitness
 
-    def _get_neighbors(self,graph,affected_add,affected_drop):
+    def _get_neighbors(self,graph, affected_add, affected_drop):
         neighbors = []
         neighbors += self._get_n_reroute_neighbors(
             graph, cfg.TABU_NUM_REROUTE_NEIGHBORS, affected_add, affected_drop)
@@ -1146,7 +1146,36 @@ class TabuSearch:
             graph, cfg.TABU_NUM_REVERSE_NEIGHBORS, affected_add, affected_drop)
         return neighbors
 
-   
+    def _get_n_redistribute_neighbors(self, graph, max_neighbors, affected_redistribute):
+        pass
+        #TODO
+
+    def redistribute(self, graph, topo_order, cut_after, Ls):
+        """Alain's idea of cut and redistribute
+
+        Parameters
+        ----------
+        graph : _type_
+            _description_
+        topo_order : _type_
+            _description_
+        cut_after : _type_
+            _description_
+        """
+        L_bar, L_star = Ls
+
+    def _get_n_redistribute(self,graph, n):
+        topo_order = list(nx.topological_sort(graph))
+        w,z = self._get_related_times(graph, self.c_travel, self.c_operate)
+        # calculate L
+        # calculate L_bar
+        # calculate L*
+        # cut_after = [random(n) for _ in range(n)]
+        # for i in n:
+        #     neighbor = redistribute(graph,topo_order,cut_after)
+        #     neighbors.append(neighbor)
+        # re
+
     def _get_n_reverse_neighbors(self, graph, max_neighbors, affected_add, affected_drop, on_critical = cfg.TABU_REVERSE_ON_CRITICAL):
         neighbors = []
         # ni_descendants is a dictionary of descendants that are not neighbor of each node in nx Digraph
@@ -1377,7 +1406,7 @@ class TabuSearch:
             graph.add_edge(c,b,weight = reroute_amount)
 
         return graph
-            
+
     def _get_n_reroute_neighbors(
             self,
             graph, 
@@ -1440,7 +1469,7 @@ class TabuSearch:
         Returns
         -------
         edges : list
-            list of weighted edges, every element has the form of (source, sink, weight) 
+            list of weighted edges, every element has the form of (source, sink, weight), the weight is number of flow traverse the edge
             
         """
         edges = []
@@ -1627,7 +1656,7 @@ class TabuSearch:
             
         return init_sol
     
-    
+
     def _is_tabu(self, affected_add, affected_drop, tl_add, tl_drop):
         if len(affected_add) == 2: #reroute
             (a,b),(c,d) = affected_add
