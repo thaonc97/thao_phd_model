@@ -1138,43 +1138,101 @@ class TabuSearch:
         fitness = makespan
         return fitness
 
-    def _get_neighbors(self,graph, affected_add, affected_drop):
+    def _get_neighbors(self,graph, affected_add, affected_drop,affected_redistribute):
         neighbors = []
         neighbors += self._get_n_reroute_neighbors(
             graph, cfg.TABU_NUM_REROUTE_NEIGHBORS, affected_add, affected_drop)
         neighbors += self._get_n_reverse_neighbors(
             graph, cfg.TABU_NUM_REVERSE_NEIGHBORS, affected_add, affected_drop)
+        neighbors += self._get_n_redistribute_neighbors(
+            graph,cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS, affected_redistribute)
+
         return neighbors
 
-    def _get_n_redistribute_neighbors(self, graph, max_neighbors, affected_redistribute):
-        pass
-        #TODO
 
-    def redistribute(self, graph, topo_order, cut_after, Ls):
+    def _redistribute(self, graph: nx.DiGraph, topo_order :list, cut_point :int, Ls):
         """Alain's idea of cut and redistribute
 
         Parameters
         ----------
-        graph : _type_
-            _description_
+        graph : nx.DiGraph
+            graph representation of the solution
         topo_order : _type_
             _description_
-        cut_after : _type_
+        cut_point : _type_
             _description_
         """
-        L_bar, L_star = Ls
+        #cut
+        #calculate pi_i left and right
+        N_left = topo_order[:cut_point]
+        N_right = topo_order[cut_point:]
+        pi_left = {node: np.sum(graph.edges[node,succ]['weight'] for succ in graph.successors(node) if succ in N_right) for node in N_left}
+        pi_right = {node: np.sum(graph.edges[pred,node]['weight'] for pred in graph.predecessors(node) if pred in N_left) for node in N_right}
+        result_graph = copy.deepcopy(graph)
+        edges = list(graph.edges())
+        for edge in edges:
+            if edge[0] in N_left and edge[1] in N_right:
+                result_graph.remove_edge(edge[0],edge[1])
 
-    def _get_n_redistribute(self,graph, n):
+        solve_results = self._cplex_redistribute(N_left, N_right, pi_left, pi_right, Ls)
+        f = solve_results['sol'].get_value_dict(solve_results['f'], keep_zeros = False)
+        for key, value in f.items():
+            result_graph.add_edge(key[0],key[1], weight = value)
+        return result_graph
+
+    def _cplex_redistribute(self, N_left, N_right, pi_left, pi_right, Ls):
+        L, L_bar, L_star = Ls
+        c_travel = self.c_travel
+
+        m = Model('redistribute')
+        N_index = [(i,j) for i in N_left for j in N_right]
+        x = m.binary_var_dict(N_index, name = 'x')
+        f = m.continuous_var_dict(N_index, name = 'f')
+        C_max = m.continuous_var(name = 'C_max')
+
+        m.minimize(C_max)
+        m.add_constraints((L_bar[i] + c_travel[i][j] + L_star[j])*x[i,j] <= C_max for i in N_left for j in N_right)
+        m.add_constraints(m.sum(f[i,j] for j in N_right) == pi_left[i] for i in N_left)
+        m.add_constraints(m.sum(f[i,j] for i in N_left) == pi_right[j] for j in N_right)
+        m.add_constraints(f[i,j] <= 30*x[i,j] for i in N_left for j in N_right)
+        m.add_constraints(f[i,j] >= x[i,j] for i in N_left for j in N_right)
+        
+        cplex_sol = m.solve(log_output = cfg.LOG_OUTPUT)
+        # print(cplex_sol.objective_value) #TODO delete
+        if cfg.EXPORT_MODEL == True:
+            m.export_as_lp()
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+
+        solve_info = {
+            'sol':cplex_sol,
+            'x':x,
+            'f':f,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
+        return solve_info
+
+    def _get_n_redistribute_neighbors(self,graph, num_neighbors, affected_redistribute):
         topo_order = list(nx.topological_sort(graph))
-        w,z = self._get_related_times(graph, self.c_travel, self.c_operate)
-        # calculate L
-        # calculate L_bar
-        # calculate L*
-        # cut_after = [random(n) for _ in range(n)]
-        # for i in n:
-        #     neighbor = redistribute(graph,topo_order,cut_after)
-        #     neighbors.append(neighbor)
-        # re
+        z, w = self._get_related_times(graph, self.c_travel, self.c_operate) # z is L
+        # calculate L, L_bar, L_star
+        L = z
+        L_bar = {node: L[node] + self.c_operate[node] for node in L}
+        L_star = self._get_longest_path(graph, self.c_travel, self.c_operate)
+        Ls = (L, L_bar, L_star)
+        total_nodes = len(topo_order)
+        cuts_after = np.random.default_rng().choice(range(2,total_nodes-2), size = num_neighbors, replace=False)
+        
+        neighbors = []
+        for i in cuts_after:
+            neighbor = self._redistribute(graph,topo_order, i, Ls)
+            neighbors.append(neighbor)
+            affected_redistribute[neighbor] = i
+            
+        return neighbors
 
     def _get_n_reverse_neighbors(self, graph, max_neighbors, affected_add, affected_drop, on_critical = cfg.TABU_REVERSE_ON_CRITICAL):
         neighbors = []
@@ -1492,7 +1550,7 @@ class TabuSearch:
         Returns
         -------
         out_nodes : dict
-            `outnodes[1] = [2,3,69]` means that edges (1,2), (1,3), (1,69) in the graph.
+            `out_nodes[1] = [2,3,69]` means that edges (1,2), (1,3), (1,69) in the graph.
         """
         out_nodes = {}
         nodes = list(graph.nodes())
@@ -1500,6 +1558,27 @@ class TabuSearch:
             out_nodes[node] = list(graph.successors(node))
 
         return out_nodes
+    
+    def _get_in_nodes(self,graph):
+        """
+        Get a dictionary of in nodes from all nodes on a directed graph
+        
+        Parameters
+        ----------
+        graph : nx.DiGraph or nx.MultiDiGraph
+
+
+        Returns
+        -------
+        in_nodes : dict
+            `in_nodes[35] = [2,3,69]` means that edges (2,35), (3,35), (69,35) are in the graph.
+        """
+        in_nodes = {}
+        nodes = list(graph.nodes())
+        for node in nodes:
+            in_nodes[node] = list(graph.predecessors(node))
+
+        return in_nodes
     
     def _get_start_time(self, graph, c_travel, c_operate):
         """Get the start time of each task in the graph
@@ -1591,6 +1670,49 @@ class TabuSearch:
             waits[edge] = z[b] - z[a] - c_operate[a] - c_travel[a][b] 
         return z, waits
 
+    def _get_longest_path(self, graph, c_travel, c_operate):
+        """Get longest path from each node to the sink node
+        Parameters
+        ----------
+        graph : _type_
+            _description_
+        c_travel : _type_
+            _description_
+        c_operate : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        topo_order = list(nx.topological_sort(graph))
+        in_nodes = self._get_in_nodes(graph)
+        # c_travel = copy.deepcopy(c_travel)
+        # c_operate = copy.deepcopy(c_operate)
+        
+        c_operate[-1] = 0
+        c_travel[-1] = {}
+        c_travel[0][-1] = 0
+        for i in c_travel:
+            if i!= 0 and i!=-1:
+                c_travel[i][-1] = c_travel[i][0]
+        
+        L_star = {}
+        for j in c_operate:
+            L_star[j] = -np.infty
+        L_star[-1] = 0
+        L_star[0] = -np.infty
+        
+        while topo_order:
+            cur_task = topo_order.pop()
+            for pred in in_nodes[cur_task]:
+                cur_L_star = L_star[cur_task] + c_operate[pred] + c_travel[pred][cur_task]
+                if L_star[pred] < cur_L_star:
+                    L_star[pred] = cur_L_star
+
+        return L_star
+    
     def _get_critical_edges(self, graph_sol: nx.DiGraph, c_travel, c_operate:dict):
         z,w = self._get_related_times(graph_sol, c_travel, c_operate)
         # Find the critical path of graph_sol(nx.DiGraph) and return the path, the start time of each task is in z[i] is the start time of task i,w[(i,j)] is the waiting time of task i to j
@@ -1672,6 +1794,12 @@ class TabuSearch:
                 return True
         
         return False
+    
+    def _is_tabu_redistribute(self, affected_redistribute, tl_redistribute):
+        is_tabu = False
+        if affected_redistribute in tl_redistribute:
+            is_tabu = True
+        return is_tabu
 
     def _log_config(self):
         if cfg.TABU_LOG_PARAMETERES:
@@ -1679,8 +1807,10 @@ class TabuSearch:
             logging.info(f'RANDOM_SEED: {cfg.RND_SEED}')
             logging.info(f'NUM_REVERSE_NEIGHBORS: {cfg.TABU_NUM_REVERSE_NEIGHBORS}')
             logging.info(f'NUM_REROUTE_NEIGHBORS: {cfg.TABU_NUM_REROUTE_NEIGHBORS}')
+            logging.info(f'NUM_REDISTRIBUTE_NEIGHBORS: {cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS}')
             logging.info(f'MAX_TL_ADD_SIZE: {cfg.TABU_MAX_TL_ADD_SIZE}')
             logging.info(f'MAX_TL_DROP_SIZE: {cfg.TABU_MAX_TL_DROP_SIZE}')
+            logging.info(f'MAX_TL_REDISTRIBUTE_SIZE: {cfg.TABU_TL_REDISTRIBUTE_SIZE}')
             logging.info(f'MAX_ITER: {cfg.TABU_MAX_ITER}')
             logging.info(f'FIND_FROM_ELITE_AFTER: {cfg.TABU_FIND_FROM_ELITE_AFTER}')
             logging.info(f'RESTART_AFTER: {cfg.TABU_RESTART_AFTER}')
@@ -1698,8 +1828,10 @@ class TabuSearch:
         cfg_info = [f'RANDOM_SEED: {cfg.RND_SEED}',
                     f'NUM_REVERSE_NEIGHBORS: {cfg.TABU_NUM_REVERSE_NEIGHBORS}',
                     f'NUM_REROUTE_NEIGHBORS: {cfg.TABU_NUM_REROUTE_NEIGHBORS}',
+                    f'NUM_REDISTRIBUTE_NEIGHBORS: {cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS}',
                     f'MAX_TL_ADD_SIZE: {cfg.TABU_MAX_TL_ADD_SIZE}',
                     f'MAX_TL_DROP_SIZE: {cfg.TABU_MAX_TL_DROP_SIZE}',
+                    f'MAX_TL_REDISTRIBUTE_SIZE: {cfg.TABU_TL_REDISTRIBUTE_SIZE}',
                     f'MAX_ITER: {cfg.TABU_MAX_ITER}',
                     f'FIND_FROM_ELITE_AFTER: {cfg.TABU_FIND_FROM_ELITE_AFTER}',
                     f'RESTART_AFTER: {cfg.TABU_RESTART_AFTER}',
@@ -1732,43 +1864,61 @@ class TabuSearch:
         best_solution_fitness = self._get_fitness(best_solution)
         tl_add = []
         tl_drop = []
+        tl_redistribute = []
         i_no_update = 0
         best_fitnesses = [best_solution_fitness]
         cur_fitnesses = [best_solution_fitness]
         for i in range(max_iters):
             affected_add = {} #key : graph, value:edges to add to tl_add
             affected_drop = {} #key : graph, value:edges to add to tl_drop
-            neighbors = self._get_neighbors(lastest_best_solution, affected_add, affected_drop)
+            affected_redistribute = {}
+            neighbors = self._get_neighbors(lastest_best_solution, affected_add, affected_drop, affected_redistribute)
             best_neighbor = None
             best_neighbor_fitness = np.inf
-
+            chosen_neigborhood = 0 # 0 is for reroute or reverse, 1 is for redistribute
             for neighbor in neighbors:
-                if  not self._is_tabu(affected_add[neighbor], affected_drop[neighbor],tl_add, tl_drop): #TODO find a way to check this quickly
-                    neighbor_fitness = self._get_fitness(neighbor)
-                    if best_neighbor is None or neighbor_fitness < best_neighbor_fitness:
-                        best_neighbor = neighbor
-                        best_neighbor_fitness = neighbor_fitness
-
+                if neighbor in affected_add:
+                    if  not self._is_tabu(affected_add[neighbor], affected_drop[neighbor],tl_add, tl_drop): #TODO find a way to check this quickly
+                        neighbor_fitness = self._get_fitness(neighbor)
+                        if best_neighbor is None or neighbor_fitness < best_neighbor_fitness:
+                            chosen_neigborhood = 0
+                            best_neighbor = neighbor
+                            best_neighbor_fitness = neighbor_fitness
+                if neighbor in affected_redistribute:
+                    if  not self._is_tabu_redistribute(affected_redistribute[neighbor], tl_redistribute):
+                        neighbor_fitness = self._get_fitness(neighbor)
+                        # print(f'Neighbor fitness redistribute: {neighbor_fitness}') #TODO delete
+                        if best_neighbor is None or neighbor_fitness < best_neighbor_fitness:
+                            chosen_neigborhood = 1
+                            best_neighbor = neighbor
+                            best_neighbor_fitness = neighbor_fitness
+            
+            # logging.info(f'Chosen neighborhood: {chosen_neigborhood}')
             if best_neighbor is None:
                 logging.info(f'No neighbor found')
                 break
             if best_neighbor_fitness < best_solution_fitness:
                 best_solution = best_neighbor
                 best_solution_fitness = best_neighbor_fitness
-                logging.info(f'Best fitness updated: {best_solution_fitness}')
+                logging.info(f'Best fitness updated: {best_solution_fitness}, chosen neighborhood: {chosen_neigborhood}')
                 i_no_update = 0
             else:
                 i_no_update += 1
 
 
             lastest_best_solution = best_neighbor
-            tl_add += affected_add[best_neighbor]
-            tl_drop += affected_drop[best_neighbor]
+            if chosen_neigborhood == 0:
+                tl_add += affected_add[best_neighbor]
+                tl_drop += affected_drop[best_neighbor]
+            if chosen_neigborhood ==1:
+                tl_redistribute += affected_redistribute[best_neighbor]
             if len(tl_add) > tabu_list_size:
                 # logging.info(f"Removing {len(tl_add) - tabu_list_size} item from tb list")
                 [tl_add.pop(i) for i in range(len(tl_add) - tabu_list_size)]
             if len(tl_drop) > tabu_list_size:
                 [tl_drop.pop(i) for i in range(len(tl_drop) - tabu_list_size)]
+            if len(tl_redistribute) > cfg.TABU_TL_REDISTRIBUTE_SIZE:
+                [tl_redistribute.pop(i) for i in range(len(tl_redistribute) - cfg.TABU_TL_REDISTRIBUTE_SIZE)]
             if i % cfg.TABU_LOG_EVERY_ITERATIONS == 0:
                 logging.info(f'Iteration {i} done')
 

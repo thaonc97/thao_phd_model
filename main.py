@@ -26,14 +26,15 @@ if __name__ == "__main__":
     }
     """
 
-    method = 6 #exact method
+    method = 2 #exact method
 
-    total_robots = 10 
+    total_robots = 10
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'generated1.csv'
-    data_name = 'lim/100/lc101-5-uniform.csv'
+    # data_name = 'generated18.csv'
+    # data_name = 'lim/100/lrc202-5-uniform.csv'
+    data_name = 'lim/200/LC1_2_3-5-uniform.csv'
     total_tasks = 6 # random data
     
 
@@ -45,9 +46,9 @@ if __name__ == "__main__":
 
     logging.info(f'Solving data {data_name} with {total_robots} robots and {len(raw.tasks)} tasks')
     # Solve with CPLEX
-    processed_data = process(raw, method)
-    solve_result = solve_pdpcr(processed_data, total_robots, method)
-    solve_result['sol'].display()
+    # processed_data = process(raw, method)
+    # solve_result = solve_pdpcr(processed_data, total_robots, method)
+    # solve_result['sol'].display()
 
     
     processed_h = heuristic.process_greedy_1(raw)
@@ -79,10 +80,10 @@ if __name__ == "__main__":
     # print('Done')
 
     #Solve with Tabu search
-    # tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
-    # tabu.search(total_robots,cfg.TABU_MAX_ITER)
-    # if cfg.TABU_SAVE_FITNESSES:
-    #     tabu.save_fitness_progress(data_name)
+    tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
+    tabu.search(total_robots,cfg.TABU_MAX_ITER)
+    if cfg.TABU_SAVE_FITNESSES:
+        tabu.save_fitness_progress(data_name)
 
 
 def mass_solve_wr2(instance_paths:list, dist_paths:list, total_robots:int, method :int = 5):
