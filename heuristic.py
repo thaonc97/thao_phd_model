@@ -1838,6 +1838,7 @@ class TabuSearch:
                     f'REROUTE_ON_CRITICAL: {cfg.TABU_REROUTE_ON_CRITICAL}',
                     f'REVERSE_ON_CRITICAL: {cfg.TABU_REVERSE_ON_CRITICAL}',
                     f'REVERSE_CRITICAL_LONGEST_EDGE: {cfg.TABU_REROUTE_LONGEST_EDGE}',
+                    f'cfg.TABU_REDISTRIBUTE_PROB: {cfg.TABU_REDISTRIBUTE_PROB}',
                     "SOLVE_RESULT"
                     ]
         
@@ -1874,16 +1875,21 @@ class TabuSearch:
             affected_redistribute = {}
             neighbors = self._get_neighbors(lastest_best_solution, affected_add, affected_drop, affected_redistribute)
             best_neighbor = None
+            best_neighbor_0 = None #save best neighbor in reroute or reverse neighborhood
             best_neighbor_fitness = np.inf
+            best_neighbor_fitness_0 = np.inf
             chosen_neigborhood = 0 # 0 is for reroute or reverse, 1 is for redistribute
             for neighbor in neighbors:
-                if neighbor in affected_add:
+                if neighbor in affected_add: #reroute or reverse
                     if  not self._is_tabu(affected_add[neighbor], affected_drop[neighbor],tl_add, tl_drop): #TODO find a way to check this quickly
                         neighbor_fitness = self._get_fitness(neighbor)
                         if best_neighbor is None or neighbor_fitness < best_neighbor_fitness:
                             chosen_neigborhood = 0
                             best_neighbor = neighbor
                             best_neighbor_fitness = neighbor_fitness
+                        if best_neighbor_0 is None or neighbor_fitness < best_neighbor_fitness_0:
+                            best_neighbor_0 = neighbor
+                            best_neighbor_fitness_0 = neighbor_fitness
                 if neighbor in affected_redistribute:
                     if  not self._is_tabu_redistribute(affected_redistribute[neighbor], tl_redistribute):
                         neighbor_fitness = self._get_fitness(neighbor)
@@ -1897,6 +1903,16 @@ class TabuSearch:
             if best_neighbor is None:
                 logging.info(f'No neighbor found')
                 break
+
+            if chosen_neigborhood == 1 and np.abs(best_neighbor_fitness - cur_fitnesses[-1]) < 0.0001:
+                #beta probability to choose redistribute, 1 - beta to choose reroute or reverse
+                beta = np.random.rand()
+                if beta > cfg.TABU_REDISTRIBUTE_PROB:
+                    chosen_neigborhood = 0
+                    best_neighbor = best_neighbor_0
+                    best_neighbor_fitness = best_neighbor_fitness_0
+                    # logging.info("Changed to best reroute or reverse neighbor")
+
             if best_neighbor_fitness < best_solution_fitness:
                 best_solution = best_neighbor
                 best_solution_fitness = best_neighbor_fitness
