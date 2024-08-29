@@ -12,6 +12,10 @@ import helpers
 import logging
 from problem_variables import Raw, Task, Processed
 
+"""
+In some algorithms which differientiate between the source and the sink, then
+the source index is 0, sink's is -1
+"""
 class Path:
     def __init__(self,depot):
         self.tasks =[depot]
@@ -1129,9 +1133,6 @@ class TabuSearch:
         self.c_operate = c_operate
         self.init_solution_func = init_solution_func
 
-    def set_init_func(self, init_solution_func):
-        self.init_solution_func = init_solution_func
-
     def _get_fitness(self, graph):
         makespan = self._get_start_time(graph, self.c_travel, self.c_operate)[-1]
         # fitness = 1/(makespan+0.000001)
@@ -1770,12 +1771,21 @@ class TabuSearch:
                 if makespan < cur_best_makespan:
                     init_sol  = cur_sol
                     cur_best_makespan = makespan
+            
+        elif self.init_solution_func is GreedyInsert:
+            init_instance = self.init_solution_func(
+                self.processed,
+                self.c_travel,
+                self.c_operate
+            )
+            init_sol, makespan = init_instance.solve(total_robots)
+            
         else:
             init_sol = self.init_solution_func(
                 self.processed,
                 total_robots
         )
-            
+
         return init_sol
     
 
@@ -1854,15 +1864,21 @@ class TabuSearch:
 
     def search(self, total_robots, max_iters, tabu_list_size =cfg.TABU_MAX_TL_ADD_SIZE):
         self._log_config()
+
         init_sol = self._init_solution(total_robots)
-        init_sol_makespan = init_sol.get_makespan()
-        logging.info(f"Initial makespan: {init_sol_makespan}")
-        idx_paths = init_sol.get_idx_paths(change_sink_idx = True)
-        G = self._to_graph(idx_paths)
+        if type(init_sol) != nx.DiGraph:
+            init_sol_makespan = init_sol.get_makespan()
+            logging.info(f"Initial makespan: {init_sol_makespan}")
+            idx_paths = init_sol.get_idx_paths(change_sink_idx = True)
+            G = self._to_graph(idx_paths)
+
+        elif type(init_sol) == nx.DiGraph:
+            G = init_sol
 
         best_solution = G
         lastest_best_solution = G
         best_solution_fitness = self._get_fitness(best_solution)
+        logging.info(f'Initial fitness: {best_solution_fitness}')
         tl_add = []
         tl_drop = []
         tl_redistribute = []
@@ -1971,3 +1987,270 @@ class TabuSearch:
         self.cur_fitnesses = cur_fitnesses
         logging.info(f'Best solution found: {best_solution_fitness}')
         return best_solution, best_solution_fitness
+    
+
+class GreedyInsert:
+    """
+    Construct a solution from scratch using greedy insert heuristic.
+    In this version, we can insert task anywhere on the flow DAG.
+    """
+
+    def __init__(self, processed, c_travel, c_operate) -> None:
+        self.processed = processed
+        self.c_travel = c_travel
+        self.c_operate = c_operate
+
+    def _init_F_(self,num_robots):
+        """
+        Initialize the Flow DAG, it contains the source, sink and there are num_robots 
+        flows from source to sink.
+
+        """
+        F_cur = nx.DiGraph()
+        F_cur.add_node(0)
+        F_cur.add_node(-1)
+        F_cur.add_weighted_edges_from([(0,-1,num_robots)])
+        return F_cur
+
+    def _insert(self, graph: nx.DiGraph, topo_order :list, cut_point :int, Ls, i_hat, n_i_hat):
+        """Alain's idea of cut and redistribute
+
+        Parameters
+        ----------
+        graph : nx.DiGraph
+            graph representation of the solution
+        topo_order : _type_
+            _description_
+        cut_point : _type_
+            _description_
+        """
+        #cut
+        #calculate pi_i left and right
+        N_left = topo_order[:cut_point]
+        N_right = topo_order[cut_point:]
+        pi_left = {node: np.sum(graph.edges[node,succ]['weight'] for succ in graph.successors(node) if succ in N_right) for node in N_left}
+        pi_right = {node: np.sum(graph.edges[pred,node]['weight'] for pred in graph.predecessors(node) if pred in N_left) for node in N_right}
+        result_graph = copy.deepcopy(graph)
+        edges = list(graph.edges())
+        for edge in edges:
+            if edge[0] in N_left and edge[1] in N_right:
+                result_graph.remove_edge(edge[0], edge[1])
+
+        solve_results = self._cplex_insert(N_left, N_right, pi_left, pi_right, Ls, i_hat,n_i_hat)
+        f = solve_results['sol'].get_value_dict(solve_results['f'], keep_zeros = False)
+        C_max = solve_results['sol'].get_objective_value()
+        for key, value in f.items():
+            result_graph.add_edge(key[0],key[1], weight = value)
+        return result_graph, C_max
+    
+    def _cplex_insert(self, N_left, N_right, pi_left, pi_right, Ls, i_hat,n_i_hat):
+        L, L_bar, L_star,_ = Ls
+        c_travel = self.c_travel
+        c_operate = self.c_operate
+
+        m = Model('greedy2')
+        N_left_i_hat = N_left + [i_hat]
+        N_right_i_hat = N_right + [i_hat]
+        N_index = [(i,j) for i in N_left_i_hat for j in N_right_i_hat]
+        x = m.binary_var_dict(N_index, name = 'x')
+        f = m.continuous_var_dict(N_index, name = 'f')
+        C_max = m.continuous_var(name = 'C_max')
+        c_max = m.continuous_var(name = 'c_max')
+
+        m.minimize(C_max)
+        m.add_constraints((L_bar[i] + c_travel[i][j] + L_star[j])*x[i,j] <= C_max for i in N_left for j in N_right)
+        m.add_constraints((L_bar[i] +c_travel[i][i_hat] + c_operate[i_hat])*x[i,i_hat] <= c_max for i in N_left)
+        m.add_constraints(c_max + (c_travel[i_hat][j] + L_star[j])*x[i_hat,j] <= C_max for j in N_right)
+        m.add_constraints(m.sum(f[i,j] for j in N_right_i_hat) == pi_left[i] for i in N_left)
+        m.add_constraints(m.sum(f[i,j] for i in N_left_i_hat) == pi_right[j] for j in N_right)
+        m.add_constraint(m.sum(f[i,i_hat] for i in N_left) == n_i_hat)
+        m.add_constraint(m.sum(f[i_hat,j] for j in N_right) == n_i_hat)
+        m.add_constraints(f[i,j] <= 30*x[i,j] for i in N_left_i_hat for j in N_right_i_hat)
+        m.add_constraints(f[i,j] >= x[i,j] for i in N_left_i_hat for j in N_right_i_hat)
+        
+        cplex_sol = m.solve(log_output = cfg.LOG_OUTPUT)
+        # print(cplex_sol.objective_value) #TODO delete
+        if cfg.EXPORT_MODEL == True:
+            print(m.export_as_lp())
+        solved_gap = m.solve_details.mip_relative_gap
+        processed_nodes = m.solve_details.nb_nodes_processed
+        solve_time = m.solve_details.time
+
+        solve_info = {
+            'sol':cplex_sol,
+            'x':x,
+            'f':f,
+            "C_max":C_max,
+            'processed_nodes': processed_nodes,
+            'gap':solved_gap,
+            'solve_time':solve_time
+        }
+        return solve_info
+
+    def _get_out_nodes(self,graph):
+        """
+        Get a dictionary of out node from all nodes on a directed graph
+        
+        Parameters
+        ----------
+        graph : nx.DiGraph or nx.MultiDiGraph
+
+
+        Returns
+        -------
+        out_nodes : dict
+            `out_nodes[1] = [2,3,69]` means that edges (1,2), (1,3), (1,69) in the graph.
+        """
+        out_nodes = {}
+        nodes = list(graph.nodes())
+        for node in nodes:
+            out_nodes[node] = list(graph.successors(node))
+
+        return out_nodes
+
+    def _get_in_nodes(self,graph):
+        """
+        Get a dictionary of in nodes from all nodes on a directed graph
+        
+        Parameters
+        ----------
+        graph : nx.DiGraph or nx.MultiDiGraph
+
+
+        Returns
+        -------
+        in_nodes : dict
+            `in_nodes[35] = [2,3,69]` means that edges (2,35), (3,35), (69,35) are in the graph.
+        """
+        in_nodes = {}
+        nodes = list(graph.nodes())
+        for node in nodes:
+            in_nodes[node] = list(graph.predecessors(node))
+
+        return in_nodes
+    
+
+    def _get_longest_path(self, graph, c_travel, c_operate, topo_order):
+        """Get longest path from each node to the sink node
+        Parameters
+        ----------
+        graph : _type_
+            _description_
+        c_travel : _type_
+            _description_
+        c_operate : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        topo_order = copy.deepcopy(topo_order)
+        # topo_order = list(nx.topological_sort(graph))
+        in_nodes = self._get_in_nodes(graph)
+        # c_travel = copy.deepcopy(c_travel)
+        # c_operate = copy.deepcopy(c_operate)
+        
+        c_operate[-1] = 0
+        c_travel[-1] = {}
+        c_travel[0][-1] = 0
+        for i in c_travel:
+            if i!= 0 and i!=-1:
+                c_travel[i][-1] = c_travel[i][0]
+        
+        L_star = {}
+        for j in c_operate:
+            L_star[j] = -np.infty
+        L_star[-1] = 0
+        L_star[0] = -np.infty
+        
+        while topo_order:
+            cur_task = topo_order.pop()
+            for pred in in_nodes[cur_task]:
+                cur_L_star = L_star[cur_task] + c_operate[pred] + c_travel[pred][cur_task]
+                if L_star[pred] < cur_L_star:
+                    L_star[pred] = cur_L_star
+
+        return L_star
+
+    def _get_related_times(self, graph, c_travel, c_operate, topo_order):
+        """
+        Calculate the L, L_bar, L_star and waiting time of the graph,
+        see greedy alain for details:
+            L[j]: the earliest time of task j can start doing
+            L_bar[j]: the earliest time of task j can finish
+            L_star[j]: the time of a longest path from pickup point of j to the source.
+        Parameters
+        ----------
+        graph : _type_
+            _description_
+        c_travel : _type_
+            _description_
+        c_operate : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        reversed_topo_order = list(reversed(topo_order))
+        out_nodes = self._get_out_nodes(graph)
+        # c_travel = copy.deepcopy(c_travel)
+        # c_operate = copy.deepcopy(c_operate)
+        c_operate[-1] = 0
+        c_travel[-1] = {}
+        c_travel[0][-1] = 0
+        for i in c_travel:
+            if i!= 0 and i!=-1:
+                c_travel[i][-1] = c_travel[i][0]
+        
+        z = {} #z[i] is the start time of task i
+        for j in c_operate:
+            z[j] = -np.infty
+        z[0] = 0
+        z[-1] = -np.infty
+        while reversed_topo_order:
+            cur_task = reversed_topo_order.pop()
+            for succ in out_nodes[cur_task]:
+                z_cur = z[cur_task] + c_operate[cur_task] + c_travel[cur_task][succ]
+                if z[succ] < z_cur:
+                    z[succ] = z_cur
+        
+        edges = list(graph.edges())
+        waits = {} # w[(a,b)] is the waitng time of robots start from taks a to task b on task b
+        for edge in edges:
+            (a,b) = edge
+            waits[edge] = z[b] - z[a] - c_operate[a] - c_travel[a][b]
+        
+        L = z
+        L_bar = {node: L[node] + self.c_operate[node] for node in L}
+        L_star = self._get_longest_path(graph, self.c_travel, self.c_operate, topo_order)
+        return L, L_bar, L_star, waits
+    
+    def solve(self, num_robots):
+        tasks = self.processed.tasks
+        depot = self.processed.depot
+        idx_task_mapper = {task.index: task for task in tasks}
+        U = [task.index for task in tasks]
+        zeta_max = 2
+        F_cur = self._init_F_(num_robots)
+        F_best = copy.deepcopy(F_cur)
+        while U:
+            # logging.info(f'zeta_max: {zeta_max}')
+            C_max_best = np.infty
+            i_hat = np.random.choice(U) # i_hat : chosen task
+            n_i_hat = idx_task_mapper[i_hat].n
+            U.remove(i_hat)
+            topo_order = list(nx.topological_sort(F_cur))
+            for zeta in range(1, zeta_max):
+                Ls = self._get_related_times(F_cur, self.c_travel, self.c_operate, topo_order)
+                F_cur_zeta, C_max_cur = self._insert(F_cur, topo_order, zeta, Ls, i_hat, n_i_hat)
+                if C_max_cur < C_max_best:
+                    F_best = copy.deepcopy(F_cur_zeta)
+                    C_max_best = C_max_cur
+            F_cur = F_best
+            zeta_max += 1
+
+        return F_best, C_max_best
