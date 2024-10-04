@@ -83,8 +83,25 @@ if __name__ == "__main__":
     # print('Done')
 
     #Solve with Tabu search
-    tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate,heuristic.GreedyInsert)
-    tabu.search(total_robots,cfg.TABU_MAX_ITER)
+    cfg.TABU_MAX_TL_ADD_SIZE = int(len(tasks)/20)
+    cfg.TABU_MAX_TL_DROP_SIZE = int(len(tasks)/8)
+    cfg.TABU_NUM_REROUTE_NEIGHBORS =  int(len(tasks)/20)
+    cfg.TABU_NUM_REVERSE_NEIGHBORS =  0 #int(len(tasks)/10)
+    cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS = 0 #int(len(tasks)/20)
+    # cfg.TABU_MAX_TL_ADD_SIZE = 12
+    # cfg.TABU_MAX_TL_DROP_SIZE = 12
+    # cfg.TABU_NUM_REROUTE_NEIGHBORS = 20
+    # cfg.TABU_NUM_REVERSE_NEIGHBORS = 10
+    cfg.TABU_MAX_ITER = 100
+    cfg.TABU_FIND_FROM_ELITE_AFTER = 200 #iterations
+    cfg.TABU_RESTART_AFTER = 400 #iterations
+    cfg.TABU_REVERSE_ON_CRITICAL = True
+    cfg.TABU_REROUTE_ON_CRITICAL = False
+    cfg.TABU_REROUTE_LONGEST_EDGE = False
+    cfg.TABU_REDISTRIBUTE_PROB = 0.3
+    cfg.TABU_SAVE_FITNESSES = True
+    tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
+    tabu.search(total_robots,cfg.TABU_MAX_ITER,cfg.TABU_MAX_TL_ADD_SIZE)
     # if cfg.TABU_SAVE_FITNESSES:
     #     tabu.save_fitness_progress(data_name)
 

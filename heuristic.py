@@ -4,6 +4,7 @@ import heapq
 import networkx as nx
 import numpy as np
 import pandas as pd
+import pickle
 import time 
 import os
 
@@ -1127,11 +1128,13 @@ class VGeneralizedSolver(VietSolver):
 
 
 class TabuSearch:
-    def __init__(self, processed, c_travel, c_operate, init_solution_func = VGeneralizedSolver):
+
+    def __init__(self, processed, c_travel, c_operate, init_solution_func = VGeneralizedSolver, **kwargs):
         self.processed = processed
         self.c_travel = c_travel
         self.c_operate = c_operate
         self.init_solution_func = init_solution_func
+        self.init_solution_path = kwargs.get('init_solution_path', None)
 
     def _get_fitness(self, graph):
         makespan = self._get_start_time(graph, self.c_travel, self.c_operate)[-1]
@@ -1216,6 +1219,102 @@ class TabuSearch:
         }
         return solve_info
 
+    def _dedicated_redistribute(self,sol_graph, N_left, N_right, pi_left, pi_right, Ls):
+        """
+        Generate a new solution by redistributing the tasks in N_left to N_right
+        using Alain's idea
+        """
+        l, l_bar, l_star = Ls
+        C_max = l[-1]
+        
+        deltas = {(i,j): l_bar[i] + self.c_travel[i][j] + l_star[j] for i in N_left for j in N_right}
+        stop = False
+        while not stop:
+            f = {(i,j): sol_graph[i][j]['weight'] for i in N_left for j in N_right}
+            C_max = min(C_max,max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
+            Af= [(i,j) for i in N_left for j in N_right if deltas[(i,j)] >= C_max]
+            A_max = [edge for edge in Af if edge in f]
+
+            if len(A_max) > 0:
+                selected_edge = np.random.choice(A_max)
+            (i_star,j_star) = selected_edge
+
+            gamma = self._find_gamma(N_left, N_right, Af, f, i_star, j_star)
+            if gamma == None:
+                stop = True
+            else:
+                # Update f
+                delta_f = self._redis_cal_delta_f(f, gamma)
+                graph = self._redis_update_graph
+                # Update C_max
+                C_max = min(C_max, max(deltas[(i,j)] for i,j in f))
+        return f
+    
+    def _find_gamma(N_left, N_right, Af, f, i_star, j_star):
+        from collections import deque
+
+        # Forbidden sets: Af and f are sets of tuples
+        Af = set(Af)
+        f = set(f)
+
+        # BFS queue: (current_path, current_i, current_j)
+        queue = deque([([i_star], i_star, None)])  # Initial path starts from i_star
+        
+        while queue:
+            path, i_last, j_last = queue.popleft()
+
+            # If the last element in the path is j_star, we found a valid path
+            if j_last == j_star:
+                return path
+
+            # Explore next possible pairs (i_k, j_k)
+            if j_last is None:
+                # First step: Find j_1 such that (i_star, j_1) is not in Af
+                for j in N_right:
+                    if (i_last, j) not in Af:
+                        queue.append((path + [j], i_last, j))
+            else:
+                # Middle steps: Find next i_k and j_k satisfying conditions
+                for i in N_left:
+                    if (i, j_last) in f and (i, j_last) not in Af:
+                        for j in N_right:
+                            if (i, j) not in Af:
+                                queue.append((path + [i, j], i, j))
+
+        return None  # No valid path found
+    
+    def _redis_cal_delta_f(gamma, f) -> int:
+        affected_edges = [(gamma[2*k + 1], gamma[2*k]) for k in range(1, len(gamma)//2)]
+        affected_flows = []
+        for edge in affected_edges:
+            affected_flows.append(f[edge])
+        longest_edge = (gamma[0], gamma[-1])
+        affected_flows.append(longest_edge)
+
+        return min(affected_flows)
+        
+    def _redis_update_graph(graph, gamma, delta_f):
+        result_graph = deep_copy_graph(graph)
+        decrease_edges = [(gamma[2*k + 1], gamma[2*k]) for k in range(1, len(gamma)//2)]
+        decrease_edges.append((gamma[0], gamma[-1]))
+        increase_edges = [(gamma[2*k], gamma[2*k + 1]) for k in range(1, len(gamma)//2)-1] #TODO check off by 1
+        increase_edges += [(gamma[0], gamma[1]), (gamma[-2], gamma[-1])] # (i_star,j_1) and (i_{K},j_star)
+
+        for edge in decrease_edges:
+            result_graph(edge[0], edge[1])['weight'] -= delta_f
+            if result_graph[edge[0], edge[1]]['weight'] == 0:
+                result_graph.remove_edge(edge[0], edge[1])
+        
+        for edge in increase_edges:
+            if result_graph.has_edge(edge[0], edge[1]):
+                result_graph[edge[0], edge[1]]['weight'] += delta_f
+            else:
+                result_graph.add_edge(edge[0], edge[1], weight = delta_f)
+
+        return result_graph
+
+
+
     def _get_n_redistribute_neighbors(self,graph, num_neighbors, affected_redistribute):
         topo_order = list(nx.topological_sort(graph))
         z, w = self._get_related_times(graph, self.c_travel, self.c_operate) # z is L
@@ -1256,15 +1355,15 @@ class TabuSearch:
         np.random.shuffle(edges)
         num_neighbors = 0
         for edge in edges:
+            if num_neighbors == max_neighbors:
+                return neighbors
             if self._reversable(edge, ni_descendants):
                 G_p = self._reverse(edge, graph, related_times)
                 neighbors.append(G_p)
                 affected_add[G_p] = [edge]
                 affected_drop[G_p] = [(edge[1],edge[0])]
                 num_neighbors += 1
-                if num_neighbors == max_neighbors:
-                    return neighbors
-        
+
         return neighbors
 
     def _get_u(self, edge, graph, related_times):
@@ -1367,7 +1466,7 @@ class TabuSearch:
     def _reverse(self,edge, graph, related_times):
         u_a = self._get_u(edge, graph, related_times)
         v_b = self._get_v(edge, graph, related_times)
-        graph_prime = copy.deepcopy(graph)
+        graph_prime = deep_copy_graph(graph)
         (a,b) = edge
         reverse_weight = graph_prime[a][b]['weight']
 
@@ -1489,6 +1588,8 @@ class TabuSearch:
         num_neighbors = 0
         for i in range(len(edges_i)):
             for j in range(len(edges_j)):
+                if num_neighbors == max_neighbors:
+                    return neighbors
                 edge1 = edges_i[i]
                 edge2 = edges_j[j]
                 if self._rerouteable(edge1, edge2, descendants):
@@ -1498,8 +1599,6 @@ class TabuSearch:
                     affected_add[G_p] = [edge1, edge2]
                     affected_drop[G_p] = [(edge1[0],edge2[1]),(edge2[0],edge1[1])]
                     num_neighbors += 1
-                    if num_neighbors == max_neighbors:
-                        return neighbors
         
         return neighbors
 
@@ -1600,8 +1699,7 @@ class TabuSearch:
         """
         reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
         out_nodes = self._get_out_nodes(graph)
-        # c_travel = copy.deepcopy(c_travel)
-        # c_operate = copy.deepcopy(c_operate)
+
         
         c_operate[-1] = 0
         c_travel[-1] = {}
@@ -1643,8 +1741,6 @@ class TabuSearch:
         """
         reversed_topo_order = list(reversed(list(nx.topological_sort(graph))))
         out_nodes = self._get_out_nodes(graph)
-        # c_travel = copy.deepcopy(c_travel)
-        # c_operate = copy.deepcopy(c_operate)
         c_operate[-1] = 0
         c_travel[-1] = {}
         c_travel[0][-1] = 0
@@ -1689,8 +1785,6 @@ class TabuSearch:
         """
         topo_order = list(nx.topological_sort(graph))
         in_nodes = self._get_in_nodes(graph)
-        # c_travel = copy.deepcopy(c_travel)
-        # c_operate = copy.deepcopy(c_operate)
         
         c_operate[-1] = 0
         c_travel[-1] = {}
@@ -1759,11 +1853,6 @@ class TabuSearch:
             
             cur_best_makespan = np.infty
             for i in range(cfg.VIET_RANDOM_ITE):
-        #     init_sol = init_instance.solve(
-        #     total_robots,
-        #     cfg.TABU_INIT_TASK_EACH_ITERATION,
-        #     cfg.TABU_INIT_CONSIDER_PROCESS_TIME
-        # )
                 solve_viet = VGeneralizedSolver(self.processed, self.c_travel, self.c_operate)
                 cur_sol = solve_viet.solve(total_robots,'random',cfg.TABU_INIT_CONSIDER_PROCESS_TIME,task_range=[1,4])
                 makespan = cur_sol.get_makespan()
@@ -1779,7 +1868,11 @@ class TabuSearch:
                 self.c_operate
             )
             init_sol, makespan = init_instance.solve(total_robots)
-            
+        
+        elif self.init_solution_func is SolutionFetcher:
+            init_instance = self.init_solution_func(self.init_solution_path)
+            init_sol = init_instance.fetch()
+
         else:
             init_sol = self.init_solution_func(
                 self.processed,
@@ -1886,6 +1979,7 @@ class TabuSearch:
         best_fitnesses = [best_solution_fitness]
         cur_fitnesses = [best_solution_fitness]
         for i in range(max_iters):
+            # logging.info(f'Iteration {i} started')
             affected_add = {} #key : graph, value:edges to add to tl_add
             affected_drop = {} #key : graph, value:edges to add to tl_drop
             affected_redistribute = {}
@@ -1923,7 +2017,7 @@ class TabuSearch:
             if chosen_neigborhood == 1 and np.abs(best_neighbor_fitness - cur_fitnesses[-1]) < 0.0001:
                 #beta probability to choose redistribute, 1 - beta to choose reroute or reverse
                 beta = np.random.rand()
-                if beta > cfg.TABU_REDISTRIBUTE_PROB:
+                if beta > cfg.TABU_REDISTRIBUTE_PROB and affected_add:
                     chosen_neigborhood = 0
                     best_neighbor = best_neighbor_0
                     best_neighbor_fitness = best_neighbor_fitness_0
@@ -2030,7 +2124,7 @@ class GreedyInsert:
         N_right = topo_order[cut_point:]
         pi_left = {node: np.sum(graph.edges[node,succ]['weight'] for succ in graph.successors(node) if succ in N_right) for node in N_left}
         pi_right = {node: np.sum(graph.edges[pred,node]['weight'] for pred in graph.predecessors(node) if pred in N_left) for node in N_right}
-        result_graph = copy.deepcopy(graph)
+        result_graph = deep_copy_graph(graph)
         edges = list(graph.edges())
         for edge in edges:
             if edge[0] in N_left and edge[1] in N_right:
@@ -2236,7 +2330,7 @@ class GreedyInsert:
         U = [task.index for task in tasks]
         zeta_max = 2
         F_cur = self._init_F_(num_robots)
-        F_best = copy.deepcopy(F_cur)
+        F_best = deep_copy_graph(F_cur)
         while U:
             # logging.info(f'zeta_max: {zeta_max}')
             C_max_best = np.infty
@@ -2248,9 +2342,26 @@ class GreedyInsert:
                 Ls = self._get_related_times(F_cur, self.c_travel, self.c_operate, topo_order)
                 F_cur_zeta, C_max_cur = self._insert(F_cur, topo_order, zeta, Ls, i_hat, n_i_hat)
                 if C_max_cur < C_max_best:
-                    F_best = copy.deepcopy(F_cur_zeta)
+                    F_best = deep_copy_graph(F_cur_zeta)
                     C_max_best = C_max_cur
             F_cur = F_best
             zeta_max += 1
 
         return F_best, C_max_best
+    
+
+class SolutionFetcher:
+    def __init__(self, data_path):
+        self.data_path = data_path
+
+    def fetch(self):
+        solution = pickle.load(open(f'{self.data_path}.p', 'rb'))
+        return solution
+    
+
+def deep_copy_graph(graph):
+    new_graph = nx.DiGraph()
+    # new_graph.add_nodes_from(graph.nodes())
+    new_graph.add_edges_from(graph.edges(data = True))
+    return new_graph
+        
