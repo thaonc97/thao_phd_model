@@ -5,10 +5,12 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import pickle
+import random 
 import time 
 import os
 
 import config as cfg
+from collections import deque
 import helpers
 import logging
 from problem_variables import Raw, Task, Processed
@@ -1178,10 +1180,33 @@ class TabuSearch:
             if edge[0] in N_left and edge[1] in N_right:
                 result_graph.remove_edge(edge[0],edge[1])
 
-        solve_results = self._cplex_redistribute(N_left, N_right, pi_left, pi_right, Ls)
+        solve_results = self._dedicated_redistribute(result_graph, N_left, N_right, pi_left, pi_right, Ls)
         f = solve_results['sol'].get_value_dict(solve_results['f'], keep_zeros = False)
         for key, value in f.items():
             result_graph.add_edge(key[0],key[1], weight = value)
+        return result_graph
+    
+    def _dedicate_redistribute(self, graph: nx.DiGraph, topo_order :list, cut_point :int, Ls):
+        """Alain's idea of cut and redistribute
+
+        Parameters
+        ----------
+        graph : nx.DiGraph
+            graph representation of the solution
+        topo_order : _type_
+            _description_
+        cut_point : _type_
+            _description_
+        """
+        #cut
+        #calculate pi_i left and right
+        N_left = topo_order[:cut_point]
+        N_right = topo_order[cut_point:]
+        pi_left = {node: np.sum(graph.edges[node,succ]['weight'] for succ in graph.successors(node) if succ in N_right) for node in N_left}
+        pi_right = {node: np.sum(graph.edges[pred,node]['weight'] for pred in graph.predecessors(node) if pred in N_left) for node in N_right}
+        result_graph = deep_copy_graph(graph)
+
+        result_graph = self._dedicated_redistribute(result_graph, N_left, N_right, pi_left, pi_right, Ls)
         return result_graph
 
     def _cplex_redistribute(self, N_left, N_right, pi_left, pi_right, Ls):
@@ -1219,24 +1244,30 @@ class TabuSearch:
         }
         return solve_info
 
-    def _dedicated_redistribute(self,sol_graph, N_left, N_right, pi_left, pi_right, Ls):
+    def _dedicated_redistribute(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls):
         """
         Generate a new solution by redistributing the tasks in N_left to N_right
         using Alain's idea
         """
         l, l_bar, l_star = Ls
         C_max = l[-1]
-        
-        deltas = {(i,j): l_bar[i] + self.c_travel[i][j] + l_star[j] for i in N_left for j in N_right}
+        sol_graph = deep_copy_graph(sol_graph)
+        deltas = {
+            (i,j): l_bar[i] + self.c_travel[i][j] + l_star[j] for i in N_left for j in N_right
+            }
+        improved = False
         stop = False
         while not stop:
-            f = {(i,j): sol_graph[i][j]['weight'] for i in N_left for j in N_right}
+            # f = {(i,j): sol_graph[i][j]['weight'] for i in N_left for j in N_right if pi_left[i] > 0 and pi_right[j] > 0}
+            pi_left = {node: np.sum(sol_graph.edges[node,succ]['weight'] for succ in sol_graph.successors(node) if succ in N_right) for node in N_left}
+            pi_right = {node: np.sum(sol_graph.edges[pred,node]['weight'] for pred in sol_graph.predecessors(node) if pred in N_left) for node in N_right}
+            f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
             C_max = min(C_max,max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
-            Af= [(i,j) for i in N_left for j in N_right if deltas[(i,j)] >= C_max]
+            Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] >= C_max]
             A_max = [edge for edge in Af if edge in f]
 
             if len(A_max) > 0:
-                selected_edge = np.random.choice(A_max)
+                selected_edge = random.choice(A_max)
             (i_star,j_star) = selected_edge
 
             gamma = self._find_gamma(N_left, N_right, Af, f, i_star, j_star)
@@ -1244,70 +1275,99 @@ class TabuSearch:
                 stop = True
             else:
                 # Update f
-                delta_f = self._redis_cal_delta_f(f, gamma)
-                graph = self._redis_update_graph
+                delta_f = self._redis_cal_delta_flows(gamma, f)
+                sol_graph = self._redis_update_graph(sol_graph, gamma, delta_f)
                 # Update C_max
-                C_max = min(C_max, max(deltas[(i,j)] for i,j in f))
-        return f
+                new_C_max = max(deltas[(i,j)] for i,j in f)
+                if new_C_max < C_max:
+                    C_max = new_C_max
+                    improved = True
+        return sol_graph
     
-    def _find_gamma(N_left, N_right, Af, f, i_star, j_star):
-        from collections import deque
+    def _build_f(self, sol_graph, N_left, N_right, pi_left, pi_right):
+        f = {}
+        for i in N_left:
+            if pi_left[i] > 0:
+                for j in N_right:
+                    if pi_right[j] > 0:
+                        try:
+                            f[i,j] = sol_graph[i][j]['weight']
+                        except:
+                            pass
+        return f
 
-        # Forbidden sets: Af and f are sets of tuples
-        Af = set(Af)
-        f = set(f)
-
-        # BFS queue: (current_path, current_i, current_j)
-        queue = deque([([i_star], i_star, None)])  # Initial path starts from i_star
+    def _find_gamma(self, N_left, N_right, Af, f, i_star, j_star):
         
-        while queue:
-            path, i_last, j_last = queue.popleft()
+        queue = deque([([i_star], i_star, None)])  # Start with i_star, no j yet
+        visited = set()  # To avoid revisiting the same i, j combinations
 
-            # If the last element in the path is j_star, we found a valid path
-            if j_last == j_star:
+        while queue:
+            path, current_i, current_j = queue.popleft()
+
+            # If the last node in the path is j_star, return the found path
+            if current_j == j_star:
                 return path
 
-            # Explore next possible pairs (i_k, j_k)
-            if j_last is None:
-                # First step: Find j_1 such that (i_star, j_1) is not in Af
+            if current_j is None:
+                # Initial step: find j_1 such that (i_star, j_1) is not in Af
                 for j in N_right:
-                    if (i_last, j) not in Af:
-                        queue.append((path + [j], i_last, j))
+                    if (i_star, j) not in Af:
+                        new_path = path + [j]  # Add j to path
+                        queue.append((new_path, i_star, j))
+                        visited.add((i_star, j))
             else:
-                # Middle steps: Find next i_k and j_k satisfying conditions
-                for i in N_left:
-                    if (i, j_last) in f and (i, j_last) not in Af:
-                        for j in N_right:
-                            if (i, j) not in Af:
-                                queue.append((path + [i, j], i, j))
+                # Intermediate steps: find valid (i_k, j_k) pairs
+                for i_next in N_left:
+                    if (i_next, current_j) in f and (i_next, current_j) not in Af:
+                        for j_next in N_right:
+                            if (i_next, j_next) not in Af and (i_next, j_next) not in visited:
+                                new_path = path + [i_next, j_next]  # Add both i and j to path
+                                queue.append((new_path, i_next, j_next))
+                                visited.add((i_next, j_next))
 
-        return None  # No valid path found
+        # If no valid path is found
+        
+        return None
     
-    def _redis_cal_delta_f(gamma, f) -> int:
-        affected_edges = [(gamma[2*k + 1], gamma[2*k]) for k in range(1, len(gamma)//2)]
+    def _redis_cal_delta_flows(self, gamma, f) -> int:
+        """Generate maximum number of flows to be redistributed
+
+        Parameters
+        ----------
+        gamma : list[int]
+            The path from i_star to j_star
+        f : dict
+            _description_
+
+        Returns
+        -------
+        int
+            number of flows to be redistributed
+        """
+        affected_edges = [(gamma[2*k], gamma[2*k - 1]) for k in range(1, len(gamma)//2)]
         affected_flows = []
         for edge in affected_edges:
             affected_flows.append(f[edge])
-        longest_edge = (gamma[0], gamma[-1])
+        longest_edge = f[(gamma[0], gamma[-1])]
         affected_flows.append(longest_edge)
 
         return min(affected_flows)
         
-    def _redis_update_graph(graph, gamma, delta_f):
+    def _redis_update_graph(self, graph, gamma, delta_f):
         result_graph = deep_copy_graph(graph)
-        decrease_edges = [(gamma[2*k + 1], gamma[2*k]) for k in range(1, len(gamma)//2)]
+        decrease_edges = [(gamma[2*k], gamma[2*k - 1]) for k in range(1, len(gamma)//2)]
         decrease_edges.append((gamma[0], gamma[-1]))
-        increase_edges = [(gamma[2*k], gamma[2*k + 1]) for k in range(1, len(gamma)//2)-1] #TODO check off by 1
+        increase_edges = [(gamma[2*k], gamma[2*k + 1]) for k in range(1, len(gamma)//2 - 1)] #TODO check off by 1
         increase_edges += [(gamma[0], gamma[1]), (gamma[-2], gamma[-1])] # (i_star,j_1) and (i_{K},j_star)
 
         for edge in decrease_edges:
-            result_graph(edge[0], edge[1])['weight'] -= delta_f
-            if result_graph[edge[0], edge[1]]['weight'] == 0:
+            result_graph[edge[0]][edge[1]]['weight'] -= delta_f
+            if result_graph[edge[0]][edge[1]]['weight'] == 0:
                 result_graph.remove_edge(edge[0], edge[1])
         
         for edge in increase_edges:
             if result_graph.has_edge(edge[0], edge[1]):
-                result_graph[edge[0], edge[1]]['weight'] += delta_f
+                result_graph[edge[0]][edge[1]]['weight'] += delta_f
             else:
                 result_graph.add_edge(edge[0], edge[1], weight = delta_f)
 
@@ -1328,7 +1388,7 @@ class TabuSearch:
         
         neighbors = []
         for i in cuts_after:
-            neighbor = self._redistribute(graph,topo_order, i, Ls)
+            neighbor = self._dedicate_redistribute(graph,topo_order, i, Ls)
             neighbors.append(neighbor)
             affected_redistribute[neighbor] = i
             

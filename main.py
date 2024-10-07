@@ -85,14 +85,14 @@ if __name__ == "__main__":
     #Solve with Tabu search
     cfg.TABU_MAX_TL_ADD_SIZE = int(len(tasks)/20)
     cfg.TABU_MAX_TL_DROP_SIZE = int(len(tasks)/8)
-    cfg.TABU_NUM_REROUTE_NEIGHBORS =  int(len(tasks)/20)
-    cfg.TABU_NUM_REVERSE_NEIGHBORS =  0 #int(len(tasks)/10)
-    cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS = 0 #int(len(tasks)/20)
+    cfg.TABU_NUM_REROUTE_NEIGHBORS =  int(len(tasks)/10)
+    cfg.TABU_NUM_REVERSE_NEIGHBORS =  int(len(tasks)/15)
+    cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS = int(len(tasks)/20)
     # cfg.TABU_MAX_TL_ADD_SIZE = 12
     # cfg.TABU_MAX_TL_DROP_SIZE = 12
     # cfg.TABU_NUM_REROUTE_NEIGHBORS = 20
     # cfg.TABU_NUM_REVERSE_NEIGHBORS = 10
-    cfg.TABU_MAX_ITER = 100
+    cfg.TABU_MAX_ITER = 5000
     cfg.TABU_FIND_FROM_ELITE_AFTER = 200 #iterations
     cfg.TABU_RESTART_AFTER = 400 #iterations
     cfg.TABU_REVERSE_ON_CRITICAL = True
