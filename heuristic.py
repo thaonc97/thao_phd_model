@@ -1373,8 +1373,6 @@ class TabuSearch:
 
         return result_graph
 
-
-
     def _get_n_redistribute_neighbors(self,graph, num_neighbors, affected_redistribute):
         topo_order = list(nx.topological_sort(graph))
         z, w = self._get_related_times(graph, self.c_travel, self.c_operate) # z is L
