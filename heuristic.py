@@ -2145,6 +2145,7 @@ class GreedyInsert:
     """
     Construct a solution from scratch using greedy insert heuristic.
     In this version, we can insert task anywhere on the flow DAG.
+    Based on the idea of Redistribute neighborhood.
     """
 
     def __init__(self, processed, c_travel, c_operate) -> None:
@@ -2239,6 +2240,36 @@ class GreedyInsert:
         }
         return solve_info
 
+    def _high_dedicated_insert(self,N_left, N_right, pi_left, pi_right, Ls, i_hat, n_i_hat):
+        """
+        G2P High level
+        """
+        i_hat_l = i_hat + len(N_left) + len(N_right)
+        i_hat_r = i_hat + len(N_left) + len(N_right) + 1
+        N_left_i_hat = N_left + [i_hat_l]
+        N_right_i_hat = N_right + [i_hat_r]
+        L, L_bar, L_star,_ = Ls
+        # thetas = {i:L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] for i in N_left}
+        thetas = [L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] for i in N_left]
+        thetas.sort()
+
+        Stop = False
+        while (Stop is False) and (thetas):
+            L_bar_i_hat = thetas.pop()
+            forbid_nodes = self._construct_forbid_n_left(self,N_left, i_hat, Ls, L_bar_i_hat)
+            
+
+    def _dedic
+
+    def _construct_forbid_n_left(self,N_left, i_hat, Ls, L_bar_i_hat):
+        forbid_arcs =  []   
+        L, L_bar, L_star = Ls
+        for i in N_left:
+            if L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] > L_bar_i_hat:
+                forbid_arcs.append(i)
+
+        
+
     def _get_out_nodes(self,graph):
         """
         Get a dictionary of out node from all nodes on a directed graph
@@ -2283,7 +2314,7 @@ class GreedyInsert:
     
 
     def _get_longest_path(self, graph, c_travel, c_operate, topo_order):
-        """Get longest path from each node to the sink node
+        """Get longest path from each node to the sink node (or Lstar in redistribute neighborhood)
         Parameters
         ----------
         graph : _type_
