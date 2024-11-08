@@ -2145,6 +2145,7 @@ class GreedyInsert:
     """
     Construct a solution from scratch using greedy insert heuristic.
     In this version, we can insert task anywhere on the flow DAG.
+    based on idea of redistribute neighbor.
     """
 
     def __init__(self, processed, c_travel, c_operate) -> None:
