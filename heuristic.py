@@ -1285,6 +1285,9 @@ class TabuSearch:
         return sol_graph
     
     def _build_f(self, sol_graph, N_left, N_right, pi_left, pi_right):
+        """
+        Return flow value between every pair in N_left and N_right
+        """
         f = {}
         for i in N_left:
             if pi_left[i] > 0:
@@ -2145,7 +2148,7 @@ class GreedyInsert:
     """
     Construct a solution from scratch using greedy insert heuristic.
     In this version, we can insert task anywhere on the flow DAG.
-    based on idea of redistribute neighbor.
+    Based on the idea of Redistribute neighborhood.
     """
 
     def __init__(self, processed, c_travel, c_operate) -> None:
@@ -2240,6 +2243,283 @@ class GreedyInsert:
         }
         return solve_info
 
+    def _high_dedicated_insert(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls, i_hat, n_i_hat):
+        """
+        G2P High level
+        """
+        #Init
+        
+        i_hat_l = i_hat + len(N_left) + len(N_right)
+        i_hat_r = i_hat + len(N_left) + len(N_right) + 1
+        for dest in self.c_travel:
+            self.c_travel[dest][i_hat_r] = self.c_travel[dest][i_hat]
+        self.c_travel[i_hat_l] = self.c_travel[i_hat]
+        N_left_i_hat = N_left + [i_hat_l]
+        N_right_i_hat = N_right + [i_hat_r]
+        L, L_bar, L_star = Ls
+        L_star[i_hat_r] = 0
+
+        thetas = [L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] for i in N_left]
+        thetas.sort()
+        L_bar[i_hat_l] = thetas.pop()
+        sol_graph,C_max = self._init_sol_g2p_high(sol_graph, N_left, N_right, pi_left, pi_right,Ls,i_hat, i_hat_l, i_hat_r, n_i_hat)
+        pi_left[i_hat_l] = n_i_hat
+        pi_right[i_hat_r] = n_i_hat
+        forbid_nodes = [i_hat_l]
+        sol_graph,C_max = self._low_dedicated_insert(sol_graph, C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat, forbid_nodes)
+        Stop = False
+        while (Stop is False) and (thetas):
+            L_bar_i_hat = thetas.pop()
+            L_bar[i_hat_l] = L_bar_i_hat
+            forbid_nodes = self._construct_forbid_n_left(self,N_left, i_hat, i_hat_l, Ls, L_bar_i_hat)
+            solution_graph,C_max =  self._low_dedicated_insert(sol_graph,C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat, forbid_nodes)
+    
+    def _init_sol_g2p_high(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls, i_hat, i_hat_l, i_hat_r, n_i_hat):
+        """insert current node i to the graph
+        by letting n_i_hat flows come from N_left to i_hat
+        and letting n_i_hat flows go from i_hat to N_right
+        """
+        L, L_bar, L_star = Ls
+        f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right) #TODO maybe unnessessary
+        n_remain = n_i_hat
+        for edge, f_value in f.items():
+            if f_value <= n_remain:
+                i,j = edge
+                n_remain = n_remain - f_value
+                # f.pop(edge)
+                sol_graph.add_edge(i,i_hat_r, weight = f_value)
+                sol_graph.add_edge(i_hat_l,j, weight = f_value)
+                sol_graph.remove_edge(i,j)
+            else:
+                i,j = edge
+                # f[edge] = f_value - n_remain
+                if n_remain !=0:
+                    sol_graph.add_edge(i,i_hat_r, weight = n_remain)
+                    sol_graph.add_edge(i_hat_l, j, weight = n_remain)
+                #reduce weight on edge (i,j) of sol_graph by n_remain
+                sol_graph[i][j]['weight'] = sol_graph[i][j]['weight'] - n_remain
+                if sol_graph[i][j]['weight'] == 0:
+                    sol_graph.remove_edge(i,j)
+                n_remain = 0
+                break
+        
+        #Calculate real C_max
+        N_left_i_hat= N_left + [i_hat_l]
+        N_right_i_hat = N_right + [i_hat_r]
+        pi_right[i_hat_r] = n_i_hat
+        pi_left[i_hat_l] = n_i_hat
+        f = self._build_f(sol_graph, N_left_i_hat, N_right_i_hat, pi_left, pi_right)
+        C_max_non_i_star = max([L_bar[i] + self.c_travel[i][j] + L_star[j] for (i,j) in f])
+        real_L_star_i_hat = max([L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] for i in N_left])
+        C_max_i_star = real_L_star_i_hat + max([self.c_travel[i_hat][j] + L_star[j] for j in N_right if (i_hat_l,j) in f])
+        C_max = max(C_max_non_i_star, C_max_i_star)
+
+        return sol_graph, C_max
+            
+    def _construct_forbid_n_left(self, N_left, i_hat, i_hat_l, Ls, L_bar_i_hat):
+        """Construct a set of node i such that (i,i_hat_r)
+        are forbidden in G2P algorithm
+
+        Parameters
+        ----------
+        N_left : _type_
+            _description_
+        i_hat : _type_
+            _description_
+        Ls : _type_
+            _description_
+        L_bar_i_hat : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        forbid_nodes =  [i_hat_l]   
+        L, L_bar, L_star = Ls
+        for i in N_left:
+            if L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] > L_bar_i_hat:
+                forbid_nodes.append(i)
+        return forbid_nodes
+
+    def _low_dedicated_insert(self,sol_graph, C_max, N_left, N_right, pi_left, pi_right, Ls, i_hat, forbid_nodes):
+        """
+        G2P low level (or "IMPROVE prcedure" in Alain's idea)
+        """
+        i_hat_l = i_hat + len(N_left) + len(N_right)
+        i_hat_r = i_hat + len(N_left) + len(N_right) + 1
+        N_left_i_hat = N_left + [i_hat_l]
+        N_right_i_hat = N_right + [i_hat_r]
+        l, l_bar, l_star = Ls
+        sol_graph = deep_copy_graph(sol_graph)
+        deltas = {
+            (i,j): l_bar[i] + self.c_travel[i][j] + l_star[j] for i in N_left for j in N_right
+            }
+        f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
+        Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] > C_max] #TODO check if >= C_max or > C_max
+        fail_feasible = False
+        success_feasible = False
+        while (fail_feasible is False) and (success_feasible is False):
+            forbid_has_flows = [i for i in forbid_nodes if (i,i_hat_r) in sol_graph] #TODO is i_hat_r in sol graph
+            if not forbid_has_flows:
+                success_feasible = True
+                break
+            forbid_arcs = [(i,i_hat_r) for i in forbid_nodes]
+            forbid_gamma = Af + forbid_arcs
+            i_star = forbid_has_flows.pop()
+            gamma = self._find_gamma(
+                N_left_i_hat, N_right_i_hat, forbid_gamma, f, i_star, i_hat_r)
+            if gamma is None:
+                fail_feasible = True
+                break
+            else:
+                delta_f = self._redis_cal_delta_flows(gamma, f)
+                sol_graph = self._redis_update_graph(sol_graph, gamma, delta_f)
+                # Update C_max
+                new_C_max = max(deltas[(i,j)] for i,j in f)
+                if new_C_max < C_max:
+                    C_max = new_C_max
+        
+        if fail_feasible:
+            return None,None
+        if success_feasible:
+            sol_graph= self._dedicated_redistribute(
+                sol_graph, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls)
+            return sol_graph
+
+    def _redis_cal_delta_flows(self, gamma, f) -> int:
+        """Generate maximum number of flows to be redistributed
+
+        Parameters
+        ----------
+        gamma : list[int]
+            The path from i_star to j_star
+        f : dict
+            _description_
+
+        Returns
+        -------
+        int
+            number of flows to be redistributed
+        """
+        affected_edges = [(gamma[2*k], gamma[2*k - 1]) for k in range(1, len(gamma)//2)]
+        affected_flows = []
+        for edge in affected_edges:
+            affected_flows.append(f[edge])
+        longest_edge = f[(gamma[0], gamma[-1])]
+        affected_flows.append(longest_edge)
+
+        return min(affected_flows)
+
+    def _find_gamma(self, N_left, N_right, Af, f, i_star, j_star):
+        
+        queue = deque([([i_star], i_star, None)])  # Start with i_star, no j yet
+        visited = set()  # To avoid revisiting the same i, j combinations
+
+        while queue:
+            path, current_i, current_j = queue.popleft()
+
+            # If the last node in the path is j_star, return the found path
+            if current_j == j_star:
+                return path
+
+            if current_j is None:
+                # Initial step: find j_1 such that (i_star, j_1) is not in Af
+                for j in N_right:
+                    if (i_star, j) not in Af:
+                        new_path = path + [j]  # Add j to path
+                        queue.append((new_path, i_star, j))
+                        visited.add((i_star, j))
+            else:
+                # Intermediate steps: find valid (i_k, j_k) pairs
+                for i_next in N_left:
+                    if (i_next, current_j) in f and (i_next, current_j) not in Af:
+                        for j_next in N_right:
+                            if (i_next, j_next) not in Af and (i_next, j_next) not in visited:
+                                new_path = path + [i_next, j_next]  # Add both i and j to path
+                                queue.append((new_path, i_next, j_next))
+                                visited.add((i_next, j_next))
+
+        # If no valid path is found
+        
+        return None
+
+
+    def _build_f(self, sol_graph, N_left, N_right, pi_left, pi_right):
+        """
+        Return flow value between every pair in N_left and N_right
+        """
+        f = {}
+        for i in N_left:
+            if pi_left[i] > 0:
+                for j in N_right:
+                    if pi_right[j] > 0:
+                        try:
+                            f[i,j] = sol_graph[i][j]['weight']
+                        except:
+                            pass
+        return f
+    
+    def _dedicated_redistribute(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls):
+        """
+        Generate a new solution by redistributing the tasks in N_left to N_right
+        using Alain's idea
+        """
+        l, l_bar, l_star = Ls
+        C_max = l[-1]
+        sol_graph = deep_copy_graph(sol_graph)
+        deltas = {
+            (i,j): l_bar[i] + self.c_travel[i][j] + l_star[j] for i in N_left for j in N_right
+            }
+        improved = False
+        stop = False
+        while not stop:
+            # f = {(i,j): sol_graph[i][j]['weight'] for i in N_left for j in N_right if pi_left[i] > 0 and pi_right[j] > 0}
+            pi_left = {node: np.sum(sol_graph.edges[node,succ]['weight'] for succ in sol_graph.successors(node) if succ in N_right) for node in N_left}
+            pi_right = {node: np.sum(sol_graph.edges[pred,node]['weight'] for pred in sol_graph.predecessors(node) if pred in N_left) for node in N_right}
+            f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
+            C_max = min(C_max,max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
+            Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] >= C_max]
+            A_max = [edge for edge in Af if edge in f]
+
+            if len(A_max) > 0:
+                selected_edge = random.choice(A_max)
+            (i_star,j_star) = selected_edge
+
+            gamma = self._find_gamma(N_left, N_right, Af, f, i_star, j_star)
+            if gamma == None:
+                stop = True
+            else:
+                # Update f
+                delta_f = self._redis_cal_delta_flows(gamma, f)
+                sol_graph = self._redis_update_graph(sol_graph, gamma, delta_f)
+                # Update C_max
+                new_C_max = max(deltas[(i,j)] for i,j in f)
+                if new_C_max < C_max:
+                    C_max = new_C_max
+                    improved = True
+        return sol_graph
+
+    def _redis_update_graph(self, graph, gamma, delta_f):
+        result_graph = deep_copy_graph(graph)
+        decrease_edges = [(gamma[2*k], gamma[2*k - 1]) for k in range(1, len(gamma)//2)]
+        decrease_edges.append((gamma[0], gamma[-1]))
+        increase_edges = [(gamma[2*k], gamma[2*k + 1]) for k in range(1, len(gamma)//2 - 1)] #TODO check off by 1
+        increase_edges += [(gamma[0], gamma[1]), (gamma[-2], gamma[-1])] # (i_star,j_1) and (i_{K},j_star)
+
+        for edge in decrease_edges:
+            result_graph[edge[0]][edge[1]]['weight'] -= delta_f
+            if result_graph[edge[0]][edge[1]]['weight'] == 0:
+                result_graph.remove_edge(edge[0], edge[1])
+        
+        for edge in increase_edges:
+            if result_graph.has_edge(edge[0], edge[1]):
+                result_graph[edge[0]][edge[1]]['weight'] += delta_f
+            else:
+                result_graph.add_edge(edge[0], edge[1], weight = delta_f)
+
+        return result_graph
     def _get_out_nodes(self,graph):
         """
         Get a dictionary of out node from all nodes on a directed graph
@@ -2284,7 +2564,7 @@ class GreedyInsert:
     
 
     def _get_longest_path(self, graph, c_travel, c_operate, topo_order):
-        """Get longest path from each node to the sink node
+        """Get longest path from each node to the sink node (or Lstar in redistribute neighborhood)
         Parameters
         ----------
         graph : _type_
