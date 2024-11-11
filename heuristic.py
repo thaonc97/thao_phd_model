@@ -2188,15 +2188,19 @@ class GreedyInsert:
         pi_right = {node: np.sum(graph.edges[pred,node]['weight'] for pred in graph.predecessors(node) if pred in N_left) for node in N_right}
         result_graph = deep_copy_graph(graph)
         edges = list(graph.edges())
-        for edge in edges:
-            if edge[0] in N_left and edge[1] in N_right:
-                result_graph.remove_edge(edge[0], edge[1])
 
-        solve_results = self._cplex_insert(N_left, N_right, pi_left, pi_right, Ls, i_hat,n_i_hat)
-        f = solve_results['sol'].get_value_dict(solve_results['f'], keep_zeros = False)
-        C_max = solve_results['sol'].get_objective_value()
-        for key, value in f.items():
-            result_graph.add_edge(key[0],key[1], weight = value)
+        if not cfg.DEDICATED_INSERT:
+            for edge in edges:
+                if edge[0] in N_left and edge[1] in N_right:
+                    result_graph.remove_edge(edge[0], edge[1])
+            solve_results = self._cplex_insert(N_left, N_right, pi_left, pi_right, Ls, i_hat,n_i_hat)
+            f = solve_results['sol'].get_value_dict(solve_results['f'], keep_zeros = False)
+            C_max = solve_results['sol'].get_objective_value()
+            for key, value in f.items():
+                result_graph.add_edge(key[0],key[1], weight = value)
+        else:
+            result_graph, C_max = self._high_dedicated_insert(result_graph, N_left, N_right, pi_left, pi_right, Ls, i_hat, n_i_hat)
+
         return result_graph, C_max
     
     def _cplex_insert(self, N_left, N_right, pi_left, pi_right, Ls, i_hat,n_i_hat):
@@ -2249,14 +2253,15 @@ class GreedyInsert:
         """
         #Init
         
-        i_hat_l = i_hat + len(N_left) + len(N_right)
-        i_hat_r = i_hat + len(N_left) + len(N_right) + 1
+        i_hat_l = 999999
+        i_hat_r = i_hat_l +1
         for dest in self.c_travel:
-            self.c_travel[dest][i_hat_r] = self.c_travel[dest][i_hat]
+            if dest != -1:
+                self.c_travel[dest][i_hat_r] = self.c_travel[dest][i_hat]
         self.c_travel[i_hat_l] = self.c_travel[i_hat]
         N_left_i_hat = N_left + [i_hat_l]
         N_right_i_hat = N_right + [i_hat_r]
-        L, L_bar, L_star = Ls
+        L, L_bar, L_star,_ = Ls
         L_star[i_hat_r] = 0
 
         thetas = [L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] for i in N_left]
@@ -2266,20 +2271,47 @@ class GreedyInsert:
         pi_left[i_hat_l] = n_i_hat
         pi_right[i_hat_r] = n_i_hat
         forbid_nodes = [i_hat_l]
-        sol_graph,C_max = self._low_dedicated_insert(sol_graph, C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat, forbid_nodes)
+        sol_graph,C_max = self._low_dedicated_insert(
+            sol_graph, C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat, i_hat_l, i_hat_r, forbid_nodes)
         Stop = False
         while (Stop is False) and (thetas):
+            logging.info(f'Current thetas: {thetas}')
             L_bar_i_hat = thetas.pop()
             L_bar[i_hat_l] = L_bar_i_hat
-            forbid_nodes = self._construct_forbid_n_left(self,N_left, i_hat, i_hat_l, Ls, L_bar_i_hat)
-            solution_graph,C_max =  self._low_dedicated_insert(sol_graph,C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat, forbid_nodes)
+            forbid_nodes = self._construct_forbid_n_left(N_left, i_hat, i_hat_l, Ls, L_bar_i_hat)
+            solution_graph,C_max =  self._low_dedicated_insert(
+                sol_graph,C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat,i_hat_l, i_hat_r, forbid_nodes)
+        
+        #replace artifical tasks with real task
+        sol_graph = self._replace_clone_tasks(sol_graph, i_hat, i_hat_l, i_hat_r)
+        return sol_graph, C_max
     
+    def _replace_clone_tasks(self, graph_with_clone: nx.DiGraph, i_hat: int, i_hat_l: int, i_hat_r: int):
+        """
+        Replace the nodes i_hat_l, i_hat_r with i_hat in the graph
+        """
+        #Replace the nodes i_hat_l, i_hat_r with i_hat in the graph, and update the weights of the edges
+        graph = deep_copy_graph(graph_with_clone)
+        edges = list(graph.edges())
+        for edge in edges:
+            if edge[0] == i_hat_l:
+                edge_weight = graph.edges[edge]['weight']
+                graph.add_edge(i_hat, edge[1], weight = edge_weight)
+                graph.remove_edge(i_hat_l, edge[1])
+            if edge[1] == i_hat_r:
+                edge_weight = graph.edges[edge]['weight']
+                graph.add_edge(edge[0], i_hat, weight = edge_weight)
+                graph.remove_edge(edge[0], i_hat_r)
+        
+        return graph
+            
+
     def _init_sol_g2p_high(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls, i_hat, i_hat_l, i_hat_r, n_i_hat):
         """insert current node i to the graph
         by letting n_i_hat flows come from N_left to i_hat
         and letting n_i_hat flows go from i_hat to N_right
         """
-        L, L_bar, L_star = Ls
+        L, L_bar, L_star,_ = Ls
         f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right) #TODO maybe unnessessary
         n_remain = n_i_hat
         for edge, f_value in f.items():
@@ -2337,21 +2369,19 @@ class GreedyInsert:
             _description_
         """
         forbid_nodes =  [i_hat_l]   
-        L, L_bar, L_star = Ls
+        L, L_bar, L_star,_ = Ls
         for i in N_left:
             if L_bar[i] + self.c_travel[i][i_hat] + self.c_operate[i_hat] > L_bar_i_hat:
                 forbid_nodes.append(i)
         return forbid_nodes
 
-    def _low_dedicated_insert(self,sol_graph, C_max, N_left, N_right, pi_left, pi_right, Ls, i_hat, forbid_nodes):
+    def _low_dedicated_insert(self,sol_graph, C_max, N_left, N_right, pi_left, pi_right, Ls, i_hat, i_hat_l, i_hat_r, forbid_nodes):
         """
         G2P low level (or "IMPROVE prcedure" in Alain's idea)
         """
-        i_hat_l = i_hat + len(N_left) + len(N_right)
-        i_hat_r = i_hat + len(N_left) + len(N_right) + 1
         N_left_i_hat = N_left + [i_hat_l]
         N_right_i_hat = N_right + [i_hat_r]
-        l, l_bar, l_star = Ls
+        l, l_bar, l_star, _ = Ls
         sol_graph = deep_copy_graph(sol_graph)
         deltas = {
             (i,j): l_bar[i] + self.c_travel[i][j] + l_star[j] for i in N_left for j in N_right
@@ -2360,12 +2390,12 @@ class GreedyInsert:
         Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] > C_max] #TODO check if >= C_max or > C_max
         fail_feasible = False
         success_feasible = False
+        forbid_arcs = [(i,i_hat_r) for i in forbid_nodes]
         while (fail_feasible is False) and (success_feasible is False):
             forbid_has_flows = [i for i in forbid_nodes if (i,i_hat_r) in sol_graph] #TODO is i_hat_r in sol graph
             if not forbid_has_flows:
                 success_feasible = True
                 break
-            forbid_arcs = [(i,i_hat_r) for i in forbid_nodes]
             forbid_gamma = Af + forbid_arcs
             i_star = forbid_has_flows.pop()
             gamma = self._find_gamma(
@@ -2384,9 +2414,9 @@ class GreedyInsert:
         if fail_feasible:
             return None,None
         if success_feasible:
-            sol_graph= self._dedicated_redistribute(
-                sol_graph, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls)
-            return sol_graph
+            sol_graph, C_max = self._dedicated_redistribute(
+                sol_graph, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, forbid_arcs)
+            return sol_graph, C_max
 
     def _redis_cal_delta_flows(self, gamma, f) -> int:
         """Generate maximum number of flows to be redistributed
@@ -2461,12 +2491,12 @@ class GreedyInsert:
                             pass
         return f
     
-    def _dedicated_redistribute(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls):
+    def _dedicated_redistribute(self, sol_graph, N_left, N_right, pi_left, pi_right, Ls, forbid_arcs):
         """
         Generate a new solution by redistributing the tasks in N_left to N_right
         using Alain's idea
         """
-        l, l_bar, l_star = Ls
+        l, l_bar, l_star,_ = Ls
         C_max = l[-1]
         sol_graph = deep_copy_graph(sol_graph)
         deltas = {
@@ -2482,12 +2512,13 @@ class GreedyInsert:
             C_max = min(C_max,max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
             Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] >= C_max]
             A_max = [edge for edge in Af if edge in f]
+            forbidden_gamma = Af + forbid_arcs
 
             if len(A_max) > 0:
                 selected_edge = random.choice(A_max)
             (i_star,j_star) = selected_edge
 
-            gamma = self._find_gamma(N_left, N_right, Af, f, i_star, j_star)
+            gamma = self._find_gamma(N_left, N_right, forbidden_gamma, f, i_star, j_star)
             if gamma == None:
                 stop = True
             else:
@@ -2499,7 +2530,7 @@ class GreedyInsert:
                 if new_C_max < C_max:
                     C_max = new_C_max
                     improved = True
-        return sol_graph
+        return sol_graph, C_max
 
     def _redis_update_graph(self, graph, gamma, delta_f):
         result_graph = deep_copy_graph(graph)
@@ -2678,6 +2709,7 @@ class GreedyInsert:
             U.remove(i_hat)
             topo_order = list(nx.topological_sort(F_cur))
             for zeta in range(1, zeta_max):
+                logging.info(f'zeta: {zeta}')
                 Ls = self._get_related_times(F_cur, self.c_travel, self.c_operate, topo_order)
                 F_cur_zeta, C_max_cur = self._insert(F_cur, topo_order, zeta, Ls, i_hat, n_i_hat)
                 if C_max_cur < C_max_best:
