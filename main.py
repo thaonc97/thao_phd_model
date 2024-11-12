@@ -33,9 +33,9 @@ if __name__ == "__main__":
 
     data_type = 'csv'
     # data_name = 'generated18.csv'
-    # data_name = 'data3.csv'
+    data_name = 'data2.csv'
     # data_name = 'lim/100/lrc203-5-uniform.csv'
-    data_name = 'lim/200/LC1_2_3-5-uniform.csv'
+    # data_name = 'lim/200/LC1_2_3-5-uniform.csv'
     total_tasks = 6 # random data
     
 
@@ -100,15 +100,15 @@ if __name__ == "__main__":
     cfg.TABU_REROUTE_LONGEST_EDGE = False
     cfg.TABU_REDISTRIBUTE_PROB = 0.3
     cfg.TABU_SAVE_FITNESSES = True
-    tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
-    tabu.search(total_robots,cfg.TABU_MAX_ITER,cfg.TABU_MAX_TL_ADD_SIZE)
+    # tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
+    # tabu.search(total_robots,cfg.TABU_MAX_ITER,cfg.TABU_MAX_TL_ADD_SIZE)
     # if cfg.TABU_SAVE_FITNESSES:
     #     tabu.save_fitness_progress(data_name)
 
     #Solve with greedy insret
-    # greedy_v2 = heuristic.GreedyInsert(processed_h, c_travel, c_operate)
-    # greddy_v2_F, greedy_v2_C_max = greedy_v2.solve(total_robots)
-    # print(f'greedy insert makespan: {greedy_v2_C_max}')
+    greedy_v2 = heuristic.GreedyInsert(processed_h, c_travel, c_operate)
+    greddy_v2_F, greedy_v2_C_max = greedy_v2.solve(total_robots)
+    print(f'greedy insert makespan: {greedy_v2_C_max}')
     
 
 
