@@ -50,7 +50,7 @@ TABU_REDISTRIBUTE_PROB = 0.5 # The probability to keep best candidate redistribu
 TABU_SAVE_FITNESSES = True
 
 DEDICATED_INSERT = True
-
+DEBUG_IHAT_NOT_RANDOM = False
 LOG_LEVEL = "INFO" # DEBUG < INFO < WARNING < ERROR < CRITICAL < FATAL
 #log_fomartter = "%(message)s"
 # Nếu muốn thêm thời gian và loglevel thì dùng format bên dưới
