@@ -2252,7 +2252,10 @@ class GreedyInsert:
         G2P High level
         """
         #Init
-        
+        if cfg.GREEDY_DEBUG:
+            logging.info('start_high_dedicated_insert')
+            tasks = [task for task in self.processed.tasks]
+            helpers._check_graph_feasible(sol_graph,tasks)
         i_hat_l = 999999
         i_hat_r = i_hat_l +1
         for dest in self.c_travel:
@@ -2268,6 +2271,10 @@ class GreedyInsert:
         thetas.sort()
         L_bar[i_hat_l] = thetas.pop()
         sol_graph,C_max = self._init_sol_g2p_high(sol_graph, N_left, N_right, pi_left, pi_right,Ls,i_hat, i_hat_l, i_hat_r, n_i_hat)
+        # if cfg.GREEDY_DEBUG:
+        #     tasks = [task for task in self.processed.tasks]
+        #     helpers._check_graph_feasible(sol_graph,tasks)
+
         pi_left[i_hat_l] = n_i_hat
         pi_right[i_hat_r] = n_i_hat
         forbid_nodes = [i_hat_l]
@@ -2316,19 +2323,34 @@ class GreedyInsert:
         f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right) #TODO maybe unnessessary
         n_remain = n_i_hat
         for edge, f_value in f.items():
-            if f_value <= n_remain:
+            if f_value <= n_remain: # Current edge cannot cover enough flows for the task
                 i,j = edge
                 n_remain = n_remain - f_value
                 # f.pop(edge)
-                sol_graph.add_edge(i,i_hat_r, weight = f_value)
-                sol_graph.add_edge(i_hat_l,j, weight = f_value)
+                #Check if the edge is in the graph:
+                if sol_graph.has_edge(i,i_hat_r):
+                    sol_graph[i][i_hat_r]['weight'] += f_value
+                else:
+                    sol_graph.add_edge(i,i_hat_r, weight = f_value)
+                
+                if sol_graph.has_edge(i_hat_l,j):
+                    sol_graph[i_hat_l][j]['weight'] += f_value
+                else:
+                    sol_graph.add_edge(i_hat_l, j, weight = f_value)
                 sol_graph.remove_edge(i,j)
-            else:
+            else: # Current edge can cover enough flows for the task
                 i,j = edge
                 # f[edge] = f_value - n_remain
                 if n_remain !=0:
-                    sol_graph.add_edge(i,i_hat_r, weight = n_remain)
-                    sol_graph.add_edge(i_hat_l, j, weight = n_remain)
+                    if sol_graph.has_edge(i,i_hat_r):
+                        sol_graph[i][i_hat_r]['weight'] += n_remain
+                    else:
+                        sol_graph.add_edge(i,i_hat_r, weight = n_remain)
+                    
+                    if sol_graph.has_edge(i_hat_l,j):
+                        sol_graph[i_hat_l][j]['weight'] += n_remain
+                    else:
+                        sol_graph.add_edge(i_hat_l, j, weight = n_remain)
                 #reduce weight on edge (i,j) of sol_graph by n_remain
                 sol_graph[i][j]['weight'] = sol_graph[i][j]['weight'] - n_remain
                 if sol_graph[i][j]['weight'] == 0:
