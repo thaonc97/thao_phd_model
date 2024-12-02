@@ -26,7 +26,7 @@ if __name__ == "__main__":
     }
     """
 
-    method = 2 #exact method
+    method = 3 #exact method
 
     total_robots = 5
     random_data = False
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     data_type = 'csv'
     # data_name = 'generated18.csv'
     data_name = 'data4.csv'
-    # data_name = 'lim/100/lrc203-5-uniform.csv'
+    # data_name = 'lim/100/lc106-5-uniform.csv'
     # data_name = 'lim/200/LC1_2_3-5-uniform.csv'
     total_tasks = 6 # random data
     
@@ -65,9 +65,6 @@ if __name__ == "__main__":
     c_operate = helpers.create_operate_dict(depot,tasks)
 
 
-    #Solve with 2-opt
-    # solve_opt = heuristic.TwoOptSolver(processed_h,c_travel, c_operate)
-    # solve_opt.solve(total_robots= total_robots)
 
     #Solve with Viet generalized Solver
     # task_each_ite = 'random'
@@ -93,21 +90,25 @@ if __name__ == "__main__":
     # cfg.TABU_NUM_REROUTE_NEIGHBORS = 20
     # cfg.TABU_NUM_REVERSE_NEIGHBORS = 10
     cfg.TABU_MAX_ITER = 5000
-    cfg.TABU_FIND_FROM_ELITE_AFTER = 200 #iterations
-    cfg.TABU_RESTART_AFTER = 400 #iterations
+    cfg.TABU_FIND_FROM_ELITE_AFTER = 300 #iterations
+    cfg.TABU_RESTART_AFTER = 600 #iterations
     cfg.TABU_REVERSE_ON_CRITICAL = True
     cfg.TABU_REROUTE_ON_CRITICAL = False
     cfg.TABU_REROUTE_LONGEST_EDGE = False
     cfg.TABU_REDISTRIBUTE_PROB = 0.3
     cfg.TABU_SAVE_FITNESSES = True
-    # tabu = heuristic.TabuSearch(processed_h,c_travel, c_operate)
+    # tabu = heuristic.TabuSearch(
+    #     processed_h,c_travel, 
+    #     c_operate,
+    #     heuristic.SolutionFetcher,
+    #     init_solution_path = 'solve_results/greedy2/LC1_2_3-5-uniform_2024-11-13_16-06-46')
     # tabu.search(total_robots,cfg.TABU_MAX_ITER,cfg.TABU_MAX_TL_ADD_SIZE)
     # if cfg.TABU_SAVE_FITNESSES:
     #     tabu.save_fitness_progress(data_name)
 
-    #Solve with greedy insret
+    # Solve with greedy insret
     greedy_v2 = heuristic.GreedyInsert(processed_h, c_travel, c_operate)
-    greddy_v2_F, greedy_v2_C_max = greedy_v2.solve(total_robots)
+    greddy_v2_F, greedy_v2_C_max,*rest = greedy_v2.solve(total_robots)
     print(f'greedy insert makespan: {greedy_v2_C_max}')
     
 

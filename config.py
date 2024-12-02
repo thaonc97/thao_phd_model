@@ -49,8 +49,10 @@ VIET_RANDOM_ITE =30
 TABU_REDISTRIBUTE_PROB = 0.5 # The probability to keep best candidate redistribute instead of change to reroute or reverse
 TABU_SAVE_FITNESSES = True
 
+
+GREEDY_DEBUG = True
 DEDICATED_INSERT = True
-DEBUG_IHAT_NOT_RANDOM = False
+DEBUG_IHAT_NOT_RANDOM = True
 LOG_LEVEL = "INFO" # DEBUG < INFO < WARNING < ERROR < CRITICAL < FATAL
 #log_fomartter = "%(message)s"
 # Nếu muốn thêm thời gian và loglevel thì dùng format bên dưới

@@ -1,5 +1,6 @@
 import networkx as nx
 import numpy as np
+import logging
 
 import config as cfg
 from problem_variables import Task, Node
@@ -96,3 +97,40 @@ def create_cost_dict_wr2(raw_with_dist_travel):
 
 def h_equal(a,b,eps=1e-6):
     return abs(a-b) < eps
+
+def _get_nodes_flow(sol_graph):
+    edge_weight = {edge: sol_graph.edges[edge]['weight'] for edge in sol_graph.edges}
+    #get total out weight of each node
+    out_weight = {node: sum([edge_weight[edge] for edge in sol_graph.out_edges(node)]) for node in sol_graph.nodes}
+    #get total in weight of each node
+    in_weight = {node: sum([edge_weight[edge] for edge in sol_graph.in_edges(node)]) for node in sol_graph.nodes}
+    return out_weight,in_weight
+
+def _check_graph_feasible(sol_graph, tasks):
+    out_flows, in_flows = _get_nodes_flow(sol_graph)
+    idx_n_mapper = {task.index: task.n for task in tasks}
+    # for task in out_flows:
+    #     if not approx_equal(out_flows[task],idx_n_mapper[task]):
+    #         logging.error(f'Out flow of node {task} is {out_flows[task]} but should be {idx_n_mapper[task]}')
+    #         return False
+    #     if not approx_equal(in_flows[task],idx_n_mapper[task]):
+    #         logging.error(f'In flow of node {task} is {in_flows[task]} but should be {idx_n_mapper[task]}')
+    #         return False
+    # return True
+        
+    for task in tasks:
+        n = task.n
+        id = task.index
+        if id not in out_flows:
+            continue
+        if not approx_equal(out_flows[id],n):
+            logging.error(f'Out flow of node {id} is {out_flows[id]} but should be {n}')
+            return False
+        elif not approx_equal(in_flows[id],n):
+            logging.error(f'In flow of node {id} is {in_flows[id]} but should be {n}')
+            return False
+    return True
+
+
+def approx_equal(x, y, tolerance=0.001):
+    return abs(x-y) <= 0.5 * tolerance * (x + y)

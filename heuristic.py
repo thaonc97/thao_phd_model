@@ -2714,6 +2714,9 @@ class GreedyInsert:
         zeta_max = 2
         F_cur = self._init_F_(num_robots)
         F_best = deep_copy_graph(F_cur)
+
+        F_history = []
+        C_max_history = []
         while U:
             logging.info(f'zeta_max: {zeta_max}')
             C_max_best = np.infty
@@ -2733,9 +2736,14 @@ class GreedyInsert:
                     F_best = deep_copy_graph(F_cur_zeta)
                     C_max_best = C_max_cur
             F_cur = F_best
+            if cfg.GREEDY_DEBUG:
+                tasks = [task for task in self.processed.tasks]
+                helpers._check_graph_feasible(F_cur,tasks)
+                F_history.append(deep_copy_graph(F_cur)) #TODO remove after testing
+                C_max_history.append(C_max_best)
             zeta_max += 1
             # logging.info(f'current edges: {F_cur.edges()}')
-        return F_best, C_max_best
+        return F_best, C_max_best, F_history, C_max_history
     
 
 class SolutionFetcher:
