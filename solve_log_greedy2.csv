@@ -234,8 +234,6 @@ lim/100/lrc205-5-uniform.csv,10,793.1813597421869,49.1,2024-08-25 13:46:01.20124
 lim/100/lrc206-5-uniform.csv,10,909.7796070567734,48.9,2024-08-25 13:46:50.115971
 lim/100/lrc207-5-uniform.csv,10,1077.6363804238215,46.57,2024-08-25 13:47:36.705688
 lim/100/lrc208-5-uniform.csv,10,861.3879801997234,52.76,2024-08-25 13:48:29.479003
-lim/100/lc101-5-uniform.csv,10,856.0156534883741,144.41,2024-11-11 17:01:43.992957,dedicated insert
-lim/100/lc101-5-uniform.csv,10,950.8571936777028,118.38,2024-11-12 11:45:14.563715,dedicated insert
 lim/100/lc101-5-uniform.csv,10,330.54307255830497,14.42,2024-11-13 11:49:56.282058,dedicated insert
 lim/100/lc102-5-uniform.csv,10,353.9336176434425,11.53,2024-11-13 11:50:07.832928,dedicated insert
 lim/100/lc103-5-uniform.csv,10,314.0665331909843,10.89,2024-11-13 11:50:18.739982,dedicated insert
@@ -289,3 +287,98 @@ lim/200/LC1_2_7-5-uniform.csv,10,596.4489546555174,252.94,2024-11-13 16:24:58.73
 lim/200/LC1_2_8-5-uniform.csv,10,682.5758649976183,194.97,2024-11-13 16:28:13.780974,dedicated insert
 lim/200/LC1_2_9-5-uniform.csv,10,684.0120398846988,282.71,2024-11-13 16:32:56.553146,dedicated insert
 lim/200/LC1_2_10-5-uniform.csv,10,882.3488662392631,350.17,2024-11-13 16:38:46.783234,dedicated insert
+lim/400/LC1_4_1-5-uniform.csv,10,961.1408366715177,7967.14,2024-11-13 18:51:34.224148,dedicated insert
+lim/400/LC1_4_2-5-uniform.csv,10,1114.5663623559738,6121.28,2024-11-13 20:33:35.745171,dedicated insert
+lim/400/LC1_4_3-5-uniform.csv,10,1104.0464383026329,8559.46,2024-11-13 22:56:15.439144,dedicated insert
+lim/400/LC1_4_4-5-uniform.csv,10,1035.2063617507995,9937.81,2024-11-14 01:41:53.483491,dedicated insert
+lim/400/LC1_4_5-5-uniform.csv,10,951.9639513542797,5085.71,2024-11-14 03:06:39.436373,dedicated insert
+lim/400/LC1_4_6-5-uniform.csv,10,1256.2250696198546,5080.3,2024-11-14 04:31:19.977528,dedicated insert
+lim/400/LC1_4_7-5-uniform.csv,10,1165.7699401445227,5436.14,2024-11-14 06:01:56.361384,dedicated insert
+lim/400/LC1_4_8-5-uniform.csv,10,1157.9010450465996,4634.81,2024-11-14 07:19:11.400952,dedicated insert
+lim/400/LC1_4_9-5-uniform.csv,10,1224.43574810326,6999.94,2024-11-14 09:15:51.603398,dedicated insert
+lim/200/LC1_2_1-5-uniform.csv,10,890.4810480495034,608.16,2024-11-14 11:12:03.026200,cplex insert
+lim/200/LC1_2_2-5-uniform.csv,10,1058.1068644327784,559.57,2024-11-14 11:21:22.666101,cplex insert
+lim/200/LC1_2_3-5-uniform.csv,10,1252.6445686771744,497.08,2024-11-14 11:29:39.816260,cplex insert
+lim/200/LC1_2_4-5-uniform.csv,10,1167.7679031098555,531.64,2024-11-14 11:38:31.523326,cplex insert
+lim/200/LC1_2_5-5-uniform.csv,10,885.8860682338718,501.63,2024-11-14 11:46:53.228169,cplex insert
+lim/200/LC1_2_6-5-uniform.csv,10,941.2468719629168,491.3,2024-11-14 11:55:04.593458,cplex insert
+lim/200/LC1_2_7-5-uniform.csv,10,916.5836066969224,515.53,2024-11-14 12:03:40.188364,cplex insert
+lim/200/LC1_2_8-5-uniform.csv,10,876.6861175962586,478.53,2024-11-14 12:11:38.781316,cplex insert
+lim/200/LC1_2_9-5-uniform.csv,10,1123.52076149085,496.77,2024-11-14 12:19:55.627035,cplex insert
+lim/200/LC1_2_10-5-uniform.csv,10,1147.3675886020303,474.29,2024-11-14 12:27:49.979295,cplex insert
+lim/100/lc101-5-uniform.csv,10,330.54307255830497,15.81,2024-11-14 15:03:52.504127,dedicated insert, i hat random : True
+lim/100/lc102-5-uniform.csv,10,353.9336176434425,11.58,2024-11-14 15:04:04.107134,dedicated insert, i hat random : True
+lim/100/lc103-5-uniform.csv,10,314.0665331909843,11.24,2024-11-14 15:04:15.369317,dedicated insert, i hat random : True
+lim/100/lc104-5-uniform.csv,10,444.69716103821884,8.34,2024-11-14 15:04:23.737401,dedicated insert, i hat random : True
+lim/100/lc105-5-uniform.csv,10,289.6612055240315,13.56,2024-11-14 15:04:37.323168,dedicated insert, i hat random : True
+lim/100/lc106-5-uniform.csv,10,312.4201646514567,13.21,2024-11-14 15:04:50.560895,dedicated insert, i hat random : True
+lim/100/lc107-5-uniform.csv,10,282.75246490212953,18.55,2024-11-14 15:05:09.131720,dedicated insert, i hat random : True
+lim/100/lc108-5-uniform.csv,10,376.08426469516655,12.13,2024-11-14 15:05:21.279848,dedicated insert, i hat random : True
+lim/100/lc109-5-uniform.csv,10,296.83643162767027,16.29,2024-11-14 15:05:37.588855,dedicated insert, i hat random : True
+lim/100/lc201-5-uniform.csv,10,559.4452699675279,11.12,2024-11-14 15:05:48.728097,dedicated insert, i hat random : True
+lim/100/lc202-5-uniform.csv,10,612.8953649014018,8.42,2024-11-14 15:05:57.167680,dedicated insert, i hat random : True
+lim/100/lc203-5-uniform.csv,10,840.5915048215963,9.92,2024-11-14 15:06:07.105794,dedicated insert, i hat random : True
+lim/100/lc204-5-uniform.csv,10,438.23990393053793,11.32,2024-11-14 15:06:18.452507,dedicated insert, i hat random : True
+lim/100/lc205-5-uniform.csv,10,430.18542391461335,9.7,2024-11-14 15:06:28.173541,dedicated insert, i hat random : True
+lim/100/lc206-5-uniform.csv,10,663.0806736628324,9.25,2024-11-14 15:06:37.449487,dedicated insert, i hat random : True
+lim/100/lc207-5-uniform.csv,10,621.6703042815998,8.53,2024-11-14 15:06:45.996525,dedicated insert, i hat random : True
+lim/100/lc208-5-uniform.csv,10,433.9737337489185,11.29,2024-11-14 15:06:57.307395,dedicated insert, i hat random : True
+lim/100/lr101-5-uniform.csv,10,322.70556011895815,14.64,2024-11-14 15:07:11.971769,dedicated insert, i hat random : True
+lim/100/lr102-5-uniform.csv,10,256.98133785357555,24.48,2024-11-14 15:07:36.482311,dedicated insert, i hat random : True
+lim/100/lr103-5-uniform.csv,10,407.1796986407439,10.53,2024-11-14 15:07:47.032320,dedicated insert, i hat random : True
+lim/100/lr104-5-uniform.csv,10,382.7659396880996,11.01,2024-11-14 15:07:58.063259,dedicated insert, i hat random : True
+lim/100/lr105-5-uniform.csv,10,409.9485698373714,9.91,2024-11-14 15:08:07.999391,dedicated insert, i hat random : True
+lim/100/lr106-5-uniform.csv,10,267.3228210075379,22.1,2024-11-14 15:08:30.120226,dedicated insert, i hat random : True
+lim/100/lr107-5-uniform.csv,10,489.9827095079983,8.37,2024-11-14 15:08:38.516609,dedicated insert, i hat random : True
+lim/100/lr108-5-uniform.csv,10,509.4506226173973,8.58,2024-11-14 15:08:47.114948,dedicated insert, i hat random : True
+lim/100/lr109-5-uniform.csv,10,277.281684148543,22.33,2024-11-14 15:09:09.477350,dedicated insert, i hat random : True
+lim/100/lr201-5-uniform.csv,10,378.4522649111724,12.91,2024-11-14 15:09:22.460652,dedicated insert, i hat random : True
+lim/100/lr202-5-uniform.csv,10,770.1174959020668,7.97,2024-11-14 15:09:30.454959,dedicated insert, i hat random : True
+lim/100/lr203-5-uniform.csv,10,642.0310168236971,9.34,2024-11-14 15:09:39.813308,dedicated insert, i hat random : True
+lim/100/lr204-5-uniform.csv,10,636.3588101080124,9.88,2024-11-14 15:09:49.717954,dedicated insert, i hat random : True
+lim/100/lr205-5-uniform.csv,10,398.93799521235974,19.5,2024-11-14 15:10:09.249655,dedicated insert, i hat random : True
+lim/100/lr206-5-uniform.csv,10,497.4732765410391,11.38,2024-11-14 15:10:20.652356,dedicated insert, i hat random : True
+lim/100/lr207-5-uniform.csv,10,541.651109115211,11.46,2024-11-14 15:10:32.137744,dedicated insert, i hat random : True
+lim/100/lr208-5-uniform.csv,10,521.6985717698783,12.97,2024-11-14 15:10:45.128942,dedicated insert, i hat random : True
+lim/100/lr209-5-uniform.csv,10,466.873819074559,11.68,2024-11-14 15:10:56.832650,dedicated insert, i hat random : True
+lim/100/lrc101-5-uniform.csv,10,378.56374581137135,18.66,2024-11-14 15:11:15.597759,dedicated insert, i hat random : True
+lim/100/lrc102-5-uniform.csv,10,521.459102193159,11.05,2024-11-14 15:11:26.667761,dedicated insert, i hat random : True
+lim/100/lrc103-5-uniform.csv,10,383.2748440964107,11.66,2024-11-14 15:11:38.349726,dedicated insert, i hat random : True
+lim/100/lrc104-5-uniform.csv,10,361.15953065829314,15.82,2024-11-14 15:11:54.191484,dedicated insert, i hat random : True
+lim/100/lrc105-5-uniform.csv,10,744.9847322845093,6.37,2024-11-14 15:12:00.584486,dedicated insert, i hat random : True
+lim/100/lrc106-5-uniform.csv,10,417.14080717064155,11.32,2024-11-14 15:12:11.923352,dedicated insert, i hat random : True
+lim/100/lrc107-5-uniform.csv,10,433.36939134278657,15.46,2024-11-14 15:12:27.408987,dedicated insert, i hat random : True
+lim/100/lrc108-5-uniform.csv,10,403.8222092112849,14.77,2024-11-14 15:12:42.298165,dedicated insert, i hat random : True
+lim/100/lrc201-5-uniform.csv,10,974.017290537975,9.18,2024-11-14 15:12:51.499006,dedicated insert, i hat random : True
+lim/100/lc101-5-uniform.csv,10,406.7561913061877,62.01,2024-11-14 15:22:32.258863,cplex insert and i hat not random : True
+lim/100/lc102-5-uniform.csv,10,380.3323124670638,71.69,2024-11-14 15:23:43.970567,cplex insert and i hat not random : True
+lim/100/lc103-5-uniform.csv,10,413.7758059881652,52.8,2024-11-14 15:24:36.796218,cplex insert and i hat not random : True
+lim/100/lc104-5-uniform.csv,10,416.10930220496584,61.03,2024-11-14 15:25:37.850677,cplex insert and i hat not random : True
+lim/100/lc105-5-uniform.csv,10,451.8650731502754,82.53,2024-11-14 15:27:00.403553,cplex insert and i hat not random : True
+lim/100/lc106-5-uniform.csv,10,445.01427165874225,78.59,2024-11-14 15:28:19.009387,cplex insert and i hat not random : True
+lim/100/lc107-5-uniform.csv,10,436.8877496863787,90.89,2024-11-14 15:29:49.922737,cplex insert and i hat not random : True
+lim/100/lc108-5-uniform.csv,10,411.29915192505916,73.06,2024-11-14 15:31:03.009124,cplex insert and i hat not random : True
+lim/100/lc109-5-uniform.csv,10,454.3839377887768,65.36,2024-11-14 15:32:08.408042,cplex insert and i hat not random : True
+lim/100/lc201-5-uniform.csv,10,711.2785054573442,56.92,2024-11-14 15:33:05.352783,cplex insert and i hat not random : True
+lim/100/lc202-5-uniform.csv,10,799.8541765595777,67.57,2024-11-14 15:34:12.948621,cplex insert and i hat not random : True
+lim/100/lc203-5-uniform.csv,10,841.8268297516227,57.88,2024-11-14 15:35:10.850468,cplex insert and i hat not random : True
+lim/100/lc204-5-uniform.csv,10,578.554761066774,62.64,2024-11-14 15:36:13.508668,cplex insert and i hat not random : True
+lim/100/lc205-5-uniform.csv,10,687.5926633089821,67.23,2024-11-14 15:37:20.758881,cplex insert and i hat not random : True
+lim/100/lc206-5-uniform.csv,10,659.1029277213158,54.05,2024-11-14 15:38:14.829091,cplex insert and i hat not random : True
+lim/100/lc207-5-uniform.csv,10,592.7286737752677,56.48,2024-11-14 15:39:11.332329,cplex insert and i hat not random : True
+lim/100/lc208-5-uniform.csv,10,693.9896965297814,50.45,2024-11-14 15:40:01.804093,cplex insert and i hat not random : True
+lim/100/lr101-5-uniform.csv,10,480.1312327732385,80.96,2024-11-14 15:41:22.784228,cplex insert and i hat not random : True
+lim/100/lr102-5-uniform.csv,10,495.38749257641837,88.31,2024-11-14 15:42:51.115063,cplex insert and i hat not random : True
+lim/100/lr103-5-uniform.csv,10,543.467569730294,77.44,2024-11-14 15:44:08.579097,cplex insert and i hat not random : True
+lim/100/lr104-5-uniform.csv,10,499.1020093406457,71.85,2024-11-14 15:45:20.457825,cplex insert and i hat not random : True
+lim/100/lr105-5-uniform.csv,10,487.7387384120489,68.46,2024-11-14 15:46:28.941580,cplex insert and i hat not random : True
+lim/100/lr106-5-uniform.csv,10,521.8874102730261,65.83,2024-11-14 15:47:34.795366,cplex insert and i hat not random : True
+lim/100/lr107-5-uniform.csv,10,482.06954068169625,100.38,2024-11-14 15:49:15.199140,cplex insert and i hat not random : True
+lim/100/lr108-5-uniform.csv,10,520.0813549068549,64.21,2024-11-14 15:50:19.436258,cplex insert and i hat not random : True
+lim/100/lr109-5-uniform.csv,10,534.8470434668532,77.73,2024-11-14 15:51:37.190069,cplex insert and i hat not random : True
+lim/100/lr201-5-uniform.csv,10,496.31931364088564,80.37,2024-11-14 15:52:57.583576,cplex insert and i hat not random : True
+lim/100/lr202-5-uniform.csv,10,752.0705363118734,63.91,2024-11-14 15:54:01.518025,cplex insert and i hat not random : True
+lim/100/lr203-5-uniform.csv,10,720.0336522590746,74.05,2024-11-14 15:55:15.590081,cplex insert and i hat not random : True
+lim/100/lr204-5-uniform.csv,10,852.6515880576853,62.75,2024-11-14 15:56:18.362402,cplex insert and i hat not random : True
+lim/100/lr205-5-uniform.csv,10,696.9014826783178,67.39,2024-11-14 15:57:25.777946,cplex insert and i hat not random : True
+lim/100/lr206-5-uniform.csv,10,690.5348070973635,56.91,2024-11-14 15:58:22.844563,cplex insert and i hat not random : True
