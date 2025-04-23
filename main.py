@@ -28,14 +28,14 @@ if __name__ == "__main__":
 
     method = 3 #exact method
 
-    total_robots = 5
+    total_robots = 10
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'generated18.csv'
-    data_name = 'data4.csv'
+    # data_name = 'generated17.csv'
+    # data_name = 'data4.csv'
     # data_name = 'lim/100/lc106-5-uniform.csv'
-    # data_name = 'lim/200/LC1_2_3-5-uniform.csv'
+    data_name = 'lim/200/LC1_2_3-5-uniform.csv'
     total_tasks = 6 # random data
     
 
@@ -67,11 +67,12 @@ if __name__ == "__main__":
 
 
     #Solve with Viet generalized Solver
-    # task_each_ite = 'random'
-    # solve_viet = heuristic.VGeneralizedSolver(processed_h,c_travel, c_operate)
-    # sol = solve_viet.solve(total_robots,task_each_ite, False, task_range = [1,4])
-    # print(sol.paths)
-    # print(f' VGeneralized Solver makespan: {sol.get_makespan()}')
+    consider_process_time =False
+    task_each_ite = 'random'
+    solve_jp = heuristic.JPGeneralizedSolver(processed_h, c_travel, c_operate)
+    sol = solve_jp.solve(total_robots,task_each_ite, False)
+    print(sol.paths)
+    print(f' VGeneralized Solver makespan: {sol.get_makespan()}')
 
     # solve_viet_orig = heuristic.VietSolver(processed_h,c_travel, c_operate)
     # solve_viet_orig.solve(total_robots,task_each_ite, False)
@@ -107,9 +108,9 @@ if __name__ == "__main__":
     #     tabu.save_fitness_progress(data_name)
 
     # Solve with greedy insret
-    greedy_v2 = heuristic.GreedyInsert(processed_h, c_travel, c_operate)
-    greddy_v2_F, greedy_v2_C_max,*rest = greedy_v2.solve(total_robots)
-    print(f'greedy insert makespan: {greedy_v2_C_max}')
+    # greedy_v2 = heuristic.GreedyInsert(processed_h, c_travel, c_operate)
+    # greddy_v2_F, greedy_v2_C_max,*rest = greedy_v2.solve(total_robots,insert_algo = 2)
+    # print(f'greedy insert makespan: {greedy_v2_C_max}')
     
 
 

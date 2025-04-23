@@ -1128,6 +1128,94 @@ class VGeneralizedSolver(VietSolver):
 
         return cur_sol
 
+class JPGeneralizedSolver(VGeneralizedSolver):
+    """JP want to insert the task to the path with the minimum cost with rate 80%, 
+    second with 15%, and third with 5%
+    """
+
+    def solve(self, total_robots, tasks_each_iteration, consider_process_time, **kwargs):
+        "Do not compare process time"
+        depot = self.processed.depot
+        tasks = self.processed.tasks
+
+        c_travel = copy.deepcopy(self.c_travel)
+        c_operate = copy.deepcopy(self.c_operate)
+        c_travel_back  ={}
+        for i in c_travel:
+            try:
+                c_travel[i].pop(i)
+                c_travel_back[i] = c_travel[i].pop(0)
+            except:
+                pass
+
+
+        uninserted = copy.deepcopy(tasks) #j left
+        uninserted_idx = [task.index for task in tasks] #J_t
+        paths = [Path(depot) for _ in range(total_robots)]
+        cur_sol = Solution(paths, depot, tasks)
+
+        idx_task_mapper = {task.index: task for task in uninserted}
+        C_max = 0
+        inserted_idcs = []
+        while len(uninserted) > 0:
+            L ={}
+            for task in uninserted:
+                task_idx = task.index
+                L[task_idx] = {} 
+                for path in cur_sol.paths:
+                    if not consider_process_time:
+                        cost_if_insert = path.get_start_insert_cost(task, c_travel)
+                    else:
+                        cost_if_insert = path.get_insert_cost(task, c_travel)
+                    L[task_idx][path] = cost_if_insert
+            L_list = [(task_idx,path,cost) for task_idx in L for path,cost in L[task_idx].items()]
+            df_L = pd.DataFrame(L_list, columns = ['task_idx', 'path', 'cost']).sort_values('cost')
+            sorted_L_list = df_L.values.tolist()
+            
+            #Declare variables
+            remaining_robots = total_robots
+            cur_n = {task.index:0 for task in uninserted}
+            best_paths = {task.index:[] for task in uninserted}
+            cur_task = {path:[] for path in paths}
+                
+            #Choose the task
+            choose_ratio = [0.8, 0.15, 0.05]
+            choose_rank = np.random.choice([0,1,2], p = choose_ratio)
+            # print(f'choose rank {choose_rank}')
+            cur_rank = 0
+            for item in sorted_L_list:
+                task_idx, path, cost_if_insert = item #cost if insert
+                task = idx_task_mapper[task_idx]
+
+                cur_n[task_idx] += 1
+                best_paths[task_idx].append(path)
+                cur_task[path].append(task_idx)
+                if cur_n[task_idx] == task.n:
+                    # logging.info(f'{cur_rank} rank: {task_idx}')
+                    if cur_rank < choose_rank:
+                        cur_rank += 1
+                        continue
+                    if not consider_process_time:
+                        c_max = cost_if_insert + c_operate[task.index]
+                    if consider_process_time:
+                        c_max = cost_if_insert
+                    for path in best_paths[task_idx]:
+                        path.insert(task)
+                        path.update_total_time(c_max)
+                    uninserted.remove(task)
+                    break
+            # print("Inserted",{task_idx})
+            
+
+        # insert 0 to path
+        for path in paths:
+            last_idx = path.get_last_task().index
+            path.add_total_time(c_travel_back[last_idx])
+            path.insert(depot)
+
+        print(f'Viet generalized sol is {cur_sol.get_makespan().round(2)}')
+
+        return cur_sol
 
 class TabuSearch:
 
@@ -2168,9 +2256,10 @@ class GreedyInsert:
         F_cur.add_weighted_edges_from([(0,-1,num_robots)])
         return F_cur
 
-    def _insert(self, graph: nx.DiGraph, topo_order :list, cut_point :int, Ls, i_hat, n_i_hat):
-        """Alain's idea of cut and redistribute
 
+    def _insert(self, graph: nx.DiGraph, topo_order :list, cut_point :int, Ls, i_hat, n_i_hat, insert_algo = 2):
+        """Alain's idea of cut and redistribute
+        
         Parameters
         ----------
         graph : nx.DiGraph
@@ -2179,6 +2268,8 @@ class GreedyInsert:
             _description_
         cut_point : _type_
             _description_
+        insert_algo:int
+            1: Cplex insert, 2: dedicated insert
         """
         #cut
         #calculate pi_i left and right
@@ -2189,7 +2280,8 @@ class GreedyInsert:
         result_graph = deep_copy_graph(graph)
         edges = list(graph.edges())
 
-        if not cfg.DEDICATED_INSERT:
+        if insert_algo ==1: #CPLEX insert
+            logging.info(f'Cplex insert task {i_hat}')
             for edge in edges:
                 if edge[0] in N_left and edge[1] in N_right:
                     result_graph.remove_edge(edge[0], edge[1])
@@ -2198,8 +2290,22 @@ class GreedyInsert:
             C_max = solve_results['sol'].get_objective_value()
             for key, value in f.items():
                 result_graph.add_edge(key[0],key[1], weight = value)
-        else:
+            # if cfg.GREEDY_DEBUG:
+            #     new_topo_order = list(nx.topological_sort(result_graph))
+            #     C_max_real,*rest = self._get_related_times(result_graph,self.c_travel,self.c_operate,new_topo_order)
+            #     if C_max_real[-1]!= C_max:
+            #         print(f'C_max real: {C_max_real[-1]}, C_max: {C_max}')
+                # assert C_max_real[-1] == C_max
+                    
+        else: #dedi insert
+            logging.info(f'Dedicated insert task {i_hat}')
             result_graph, C_max = self._high_dedicated_insert(result_graph, N_left, N_right, pi_left, pi_right, Ls, i_hat, n_i_hat)
+            if cfg.GREEDY_DEBUG:
+                new_topo_order = list(nx.topological_sort(result_graph))
+                C_max_real,*rest = self._get_related_times(result_graph,self.c_travel,self.c_operate,new_topo_order)
+                if not helpers.approx_equal(C_max_real[-1],C_max):
+                # if C_max_real[-1]!= C_max:
+                    print(f'C_max real: {C_max_real[-1]}, C_max: {C_max}')
             # logging.info(f'C_max dedicated after insert task {i_hat}: {C_max}')
         return result_graph, C_max
     
@@ -2253,7 +2359,7 @@ class GreedyInsert:
         """
         #Init
         if cfg.GREEDY_DEBUG:
-            logging.info('start_high_dedicated_insert')
+            # logging.info('start_high_dedicated_insert')
             tasks = [task for task in self.processed.tasks]
             helpers._check_graph_feasible(sol_graph,tasks)
         i_hat_l = 999999
@@ -2288,7 +2394,10 @@ class GreedyInsert:
             forbid_nodes = self._construct_forbid_n_left(N_left, i_hat, i_hat_l, Ls, L_bar_i_hat)
             sol_graph ,C_max, Stop =  self._low_dedicated_insert(
                 sol_graph,C_max, N_left_i_hat, N_right_i_hat, pi_left, pi_right, Ls, i_hat,i_hat_l, i_hat_r, forbid_nodes)
-        
+            if cfg.GREEDY_DEBUG:
+                #2798.716951071826
+                if helpers.approx_equal(C_max, 2798.71695):
+                    print('Something wrong in high')
         #replace artifical tasks with real task
         sol_graph = self._replace_clone_tasks(sol_graph, i_hat, i_hat_l, i_hat_r)
         return sol_graph, C_max
@@ -2446,8 +2555,12 @@ class GreedyInsert:
         if fail_feasible:
             return sol_graph, C_max, fail_feasible
         if success_feasible:
-            sol_graph, C_max = self._dedicated_redistribute(
+            sol_graph,   = self._dedicated_redistribute(
                 sol_graph, C_max, N_left, N_right, pi_left, pi_right, Ls, forbid_arcs)
+            if cfg.GREEDY_DEBUG:
+                #2798.716951071826
+                if helpers.approx_equal(C_max, 2798.71695):
+                    print('Something wrong in lowww successs')
             return sol_graph, C_max, fail_feasible
 
     def _redis_cal_delta_flows(self, gamma, f) -> int:
@@ -2541,6 +2654,13 @@ class GreedyInsert:
             pi_right = {node: np.sum(sol_graph.edges[pred,node]['weight'] for pred in sol_graph.predecessors(node) if pred in N_left) for node in N_right}
             f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
             C_max = min(C_max,max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
+            
+            if cfg.GREEDY_DEBUG:
+                if helpers.approx_equal(C_max, 2798.71695):
+                    print('C_max: ', C_max)
+                    print(max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
+                    print('Something wrong in dedicated none')
+
             Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] >= C_max]
             A_max = [edge for edge in Af if edge in f]
             forbidden_gamma = Af + forbid_arcs
@@ -2551,6 +2671,12 @@ class GreedyInsert:
 
             gamma = self._find_gamma(N_left, N_right, forbidden_gamma, f, i_star, j_star)
             if gamma == None:
+
+                if cfg.GREEDY_DEBUG:
+                    #2798.716951071826
+                    if helpers.approx_equal(C_max, 2798.71695):
+                        print('Something wrong in gamma none')
+
                 stop = True
             else:
                 # Update f
@@ -2560,6 +2686,12 @@ class GreedyInsert:
                 new_C_max = max(deltas[(i,j)] for i,j in f)
                 if new_C_max < C_max:
                     C_max = new_C_max
+
+                    if cfg.GREEDY_DEBUG:
+                        #2798.716951071826
+                        if helpers.approx_equal(C_max, 2798.71695):
+                            print('Something wrong gamma right')
+
                     improved = True
         return sol_graph, C_max
 
@@ -2724,11 +2856,27 @@ class GreedyInsert:
         L_star = self._get_longest_path(graph, self.c_travel, self.c_operate, topo_order)
         return L, L_bar, L_star, waits
     
-    def solve(self, num_robots):
-        if cfg.DEDICATED_INSERT:
-            logging.info(f'Dedicated insert')
-        else:
-            logging.info(f'CPLEX insert')
+    def solve(self, num_robots,insert_algo= 2, insert_sequence = None):
+        """_summary_
+
+        Parameters
+        ----------
+        num_robots : _type_
+            _description_
+        insert_algo : int, optional
+            _description_, by default 2
+        insert_sequence : list, optional
+            list of algoirthm to insert task at each iteration, by default None
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        # if cfg.DEDICATED_INSERT:
+        #     logging.info(f'Dedicated insert')
+        # else:
+        #     logging.info(f'CPLEX insert')
         tasks = self.processed.tasks
         depot = self.processed.depot
         idx_task_mapper = {task.index: task for task in tasks}
@@ -2748,15 +2896,19 @@ class GreedyInsert:
             n_i_hat = idx_task_mapper[i_hat].n
             U.remove(i_hat)
             topo_order = list(nx.topological_sort(F_cur))
+            if insert_sequence:
+                insert_algo = insert_sequence.pop(0)
             for zeta in range(1, zeta_max):
                 # logging.info(f'zeta: {zeta}')
                 Ls = self._get_related_times(F_cur, self.c_travel, self.c_operate, topo_order)
-                F_cur_zeta, C_max_cur = self._insert(F_cur, topo_order, zeta, Ls, i_hat, n_i_hat)
+                F_cur_zeta, C_max_cur = self._insert(F_cur, topo_order, zeta, Ls, i_hat, n_i_hat, insert_algo)
                 # logging.info(f'current edges: {F_cur_zeta.edges()}')
                 # logging.info(f'C_max: {C_max_cur}')
                 if C_max_cur < C_max_best:
                     F_best = deep_copy_graph(F_cur_zeta)
                     C_max_best = C_max_cur
+                    if cfg.GREEDY_DEBUG:
+                        logging.info(f'New best C_max: {C_max_best}')
             F_cur = F_best
             if cfg.GREEDY_DEBUG:
                 tasks = [task for task in self.processed.tasks]

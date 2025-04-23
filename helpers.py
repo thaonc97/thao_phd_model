@@ -132,5 +132,5 @@ def _check_graph_feasible(sol_graph, tasks):
     return True
 
 
-def approx_equal(x, y, tolerance=0.001):
+def approx_equal(x, y, tolerance=0.0001):
     return abs(x-y) <= 0.5 * tolerance * (x + y)
