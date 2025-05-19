@@ -2253,10 +2253,10 @@ class GreedyInsert:
         """
         #Init
         if cfg.GREEDY_DEBUG:
-            logging.info('start_high_dedicated_insert')
+            # logging.info('start_high_dedicated_insert')
             tasks = [task for task in self.processed.tasks]
             helpers._check_graph_feasible(sol_graph,tasks)
-        i_hat_l = 999999
+        i_hat_l = 999999 #index
         i_hat_r = i_hat_l +1
         for dest in self.c_travel:
             if dest != -1:
@@ -2418,8 +2418,9 @@ class GreedyInsert:
         fail_feasible = False
         success_feasible = False
         forbid_arcs = [(i,i_hat_r) for i in forbid_nodes]
+        f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
         while (fail_feasible is False) and (success_feasible is False):
-            f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
+            # f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
             forbid_has_flows = [i for i in forbid_nodes if (i,i_hat_r) in f] #TODO is i_hat_r in sol graph
             if not forbid_has_flows:
                 success_feasible = True
@@ -2436,6 +2437,7 @@ class GreedyInsert:
                     delta_f = self._redis_cal_delta_flows(gamma, f)
                     sol_graph = self._redis_update_graph(sol_graph, gamma, delta_f)
                     # Update C_max
+                    f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
                     new_C_max = max(deltas[(i,j)] for i,j in f)
                     if new_C_max < C_max:
                         C_max = new_C_max
@@ -2535,11 +2537,13 @@ class GreedyInsert:
             }
         improved = False
         stop = False
+        f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
         while not stop:
             # f = {(i,j): sol_graph[i][j]['weight'] for i in N_left for j in N_right if pi_left[i] > 0 and pi_right[j] > 0}
-            pi_left = {node: np.sum(sol_graph.edges[node,succ]['weight'] for succ in sol_graph.successors(node) if succ in N_right) for node in N_left}
-            pi_right = {node: np.sum(sol_graph.edges[pred,node]['weight'] for pred in sol_graph.predecessors(node) if pred in N_left) for node in N_right}
-            f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
+            # pi_left = {node: np.sum(sol_graph.edges[node,succ]['weight'] for succ in sol_graph.successors(node) if succ in N_right) for node in N_left}
+            # pi_right = {node: np.sum(sol_graph.edges[pred,node]['weight'] for pred in sol_graph.predecessors(node) if pred in N_left) for node in N_right}
+            #TODO check if pi_left and pi_right are correct, I think the above two lines are unessessary since they are constant
+            # f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
             C_max = min(C_max,max(deltas[(i,j)] for i in N_left for j in N_right if (i,j) in f))
             Af= [(i,j) for i in N_left for j in N_right  if pi_left[i] > 0 and pi_right[j] > 0 and deltas[(i,j)] >= C_max]
             A_max = [edge for edge in Af if edge in f]
@@ -2556,6 +2560,7 @@ class GreedyInsert:
                 # Update f
                 delta_f = self._redis_cal_delta_flows(gamma, f)
                 sol_graph = self._redis_update_graph(sol_graph, gamma, delta_f)
+                f = self._build_f(sol_graph, N_left, N_right, pi_left, pi_right)
                 # Update C_max
                 new_C_max = max(deltas[(i,j)] for i,j in f)
                 if new_C_max < C_max:
@@ -2740,7 +2745,7 @@ class GreedyInsert:
         F_history = []
         C_max_history = []
         while U:
-            logging.info(f'zeta_max: {zeta_max}')
+            logging.info(f'_____________zeta_max: {zeta_max}_____________')
             C_max_best = np.infty
             i_hat = np.random.choice(U) # i_hat : chosen task
             if cfg.DEBUG_IHAT_NOT_RANDOM:
@@ -2749,9 +2754,11 @@ class GreedyInsert:
             U.remove(i_hat)
             topo_order = list(nx.topological_sort(F_cur))
             for zeta in range(1, zeta_max):
-                # logging.info(f'zeta: {zeta}')
+                logging.info(f'zeta: {zeta}')
                 Ls = self._get_related_times(F_cur, self.c_travel, self.c_operate, topo_order)
                 F_cur_zeta, C_max_cur = self._insert(F_cur, topo_order, zeta, Ls, i_hat, n_i_hat)
+                if cfg.GREEDY_DEBUG:
+                    logging.info(f'Current makespan: {C_max_cur}')
                 # logging.info(f'current edges: {F_cur_zeta.edges()}')
                 # logging.info(f'C_max: {C_max_cur}')
                 if C_max_cur < C_max_best:
@@ -2764,6 +2771,7 @@ class GreedyInsert:
                 F_history.append(deep_copy_graph(F_cur)) #TODO remove after testing
                 C_max_history.append(C_max_best)
             zeta_max += 1
+            # logging.info(f'Current makespan: {C_max_best}')
             # logging.info(f'current edges: {F_cur.edges()}')
         return F_best, C_max_best, F_history, C_max_history
     

@@ -28,12 +28,12 @@ if __name__ == "__main__":
 
     method = 3 #exact method
 
-    total_robots = 5
+    total_robots = 2
     random_data = False
 
     data_type = 'csv'
-    # data_name = 'generated18.csv'
-    data_name = 'data4.csv'
+    data_name = 'generated9.csv'
+    # data_name = 'data4.csv'
     # data_name = 'lim/100/lc106-5-uniform.csv'
     # data_name = 'lim/200/LC1_2_3-5-uniform.csv'
     total_tasks = 6 # random data

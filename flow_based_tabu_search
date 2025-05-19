@@ -1,0 +1,31 @@
+digraph FlowBasedTabuSearch {
+	rankdir=TB size=10 splines=polyline
+	Start [label=Start fillcolor=lightblue shape=oval style=filled]
+	Init [label="Initialize:
+- Greedy solution
+- Set as best solution
+- Empty tabu list" fillcolor=lightgray shape=parallelogram style=filled]
+	CheckStop [label="Stop condition met?" fillcolor=lightyellow shape=diamond style=filled]
+	GenCandidates [label="Generate candidates
+from neighborhood" fillcolor=white shape=rectangle style=filled]
+	EvalCandidates [label="Evaluate
+non-tabu candidates" fillcolor=white shape=rectangle style=filled]
+	SelectBest [label="Select best candidate
+as new solution" fillcolor=white shape=rectangle style=filled]
+	UpdateTabu [label="Update tabu list" fillcolor=white shape=rectangle style=filled]
+	UpdateBest [label="Is new solution better?" fillcolor=lightyellow shape=diamond style=filled]
+	RemoveOld [label="Remove oldest element
+from tabu list (if needed)" fillcolor=white shape=rectangle style=filled]
+	End [label=End fillcolor=lightblue shape=oval style=filled]
+	Start -> Init
+	Init -> CheckStop
+	CheckStop -> GenCandidates [label=No]
+	GenCandidates -> EvalCandidates
+	EvalCandidates -> SelectBest
+	SelectBest -> UpdateTabu
+	UpdateTabu -> UpdateBest
+	UpdateBest -> RemoveOld [label=Yes]
+	RemoveOld -> CheckStop
+	UpdateBest -> CheckStop [label=No]
+	CheckStop -> End [label=Yes]
+}
