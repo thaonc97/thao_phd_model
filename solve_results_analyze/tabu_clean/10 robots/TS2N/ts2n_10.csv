@@ -1,0 +1,50 @@
+lim/200/LC1_2_1-5-uniform.csv,10,829.2223904961327,716.0,2025-03-21 17:14:20.975279,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_2-5-uniform.csv,10,1063.1783772778633,633.66,2025-03-21 17:24:54.733913,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_3-5-uniform.csv,10,1310.4445436196718,595.38,2025-03-21 17:34:50.215612,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_4-5-uniform.csv,10,1111.9775567194595,613.89,2025-03-21 17:45:04.215056,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_5-5-uniform.csv,10,899.5655125992043,614.32,2025-03-21 17:55:18.640044,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_6-5-uniform.csv,10,938.6457705219186,637.24,2025-03-21 18:05:55.993605,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_7-5-uniform.csv,10,814.197189191633,596.06,2025-03-21 18:15:52.159708,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_8-5-uniform.csv,10,862.5211261100877,604.77,2025-03-21 18:25:57.039997,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_9-5-uniform.csv,10,1095.3944138754641,611.12,2025-03-21 18:36:08.272351,Tabu search with 2 original neighborhoods
+lim/200/LC1_2_10-5-uniform.csv,10,1119.8235649806359,605.09,2025-03-21 18:46:13.462820,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_1-5-uniform.csv,10,1687.7619797989894,1958.2,2025-03-21 19:18:51.946084,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_2-5-uniform.csv,10,1902.0436337790522,1978.38,2025-03-21 19:51:50.621442,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_3-5-uniform.csv,10,1858.498573780514,1966.06,2025-03-21 20:24:36.969008,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_4-5-uniform.csv,10,2153.336636668252,1820.99,2025-03-21 20:54:58.238331,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_5-5-uniform.csv,10,1500.615921417631,1937.3,2025-03-21 21:27:15.822209,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_6-5-uniform.csv,10,1570.9807457138163,1932.28,2025-03-21 21:59:28.394437,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_7-5-uniform.csv,10,1659.9499538782752,1924.09,2025-03-21 22:31:32.771969,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_8-5-uniform.csv,10,1816.4796982683752,1864.79,2025-03-21 23:02:37.847351,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_9-5-uniform.csv,10,2134.6847283480324,1931.79,2025-03-21 23:34:49.919191,Tabu search with 2 original neighborhoods
+lim/400/LC1_4_10-5-uniform.csv,10,1937.1569704105582,1851.96,2025-03-22 00:05:42.180733,Tabu search with 2 original neighborhoods
+lim/600/LC1_6_1-5-uniform.csv,10,2784.1811831150408,4519.57,2025-05-20 22:40:10.327769,2 neighborhoods
+lim/600/LC1_6_2-5-uniform.csv,10,3456.87666924094,4074.65,2025-05-20 23:48:05.567302,2 neighborhoods
+lim/600/LC1_6_3-5-uniform.csv,10,3765.646747997881,4165.14,2025-05-21 00:57:31.285781,2 neighborhoods
+lim/600/LC1_6_4-5-uniform.csv,10,3650.911062074506,4144.85,2025-05-21 02:06:36.718442,2 neighborhoods
+lim/600/LC1_6_5-5-uniform.csv,10,2684.325055712065,4152.88,2025-05-21 03:15:50.194330,2 neighborhoods
+lim/600/LC1_6_6-5-uniform.csv,10,2833.571982903957,4237.8,2025-05-21 04:26:28.583645,2 neighborhoods
+lim/600/LC1_6_7-5-uniform.csv,10,2886.9245146288117,4219.75,2025-05-21 05:36:48.912359,2 neighborhoods
+lim/600/LC1_6_8-5-uniform.csv,10,3284.9656684485385,4133.44,2025-05-21 06:45:42.967839,2 neighborhoods
+lim/600/LC1_6_9-5-uniform.csv,10,3607.097418857916,4160.67,2025-05-21 07:55:04.237929,2 neighborhoods
+lim/600/LC1_6_10-5-uniform.csv,10,3728.3726184161987,4197.98,2025-05-21 09:05:02.828477,2 neighborhoods
+lim/800/LC1_8_1-5-uniform.csv,10,4484.415297405427,8035.77,2025-03-17 18:09:48.354766,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_2-5-uniform.csv,10,5398.503060183915,6790.39,2025-03-17 20:02:59.729710,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_3-5-uniform.csv,10,6143.943106127117,6810.17,2025-03-17 21:56:30.854537,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_4-5-uniform.csv,10,6392.880011410733,6743.39,2025-03-17 23:48:55.194413,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_5-5-uniform.csv,10,4385.8183003929635,6914.32,2025-03-18 01:44:10.485681,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_6-5-uniform.csv,10,3973.5488907123986,6993.65,2025-03-18 03:40:45.101356,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_7-5-uniform.csv,10,4556.745355923931,6910.57,2025-03-18 05:35:56.644142,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_8-5-uniform.csv,10,4898.375532969215,6724.87,2025-03-18 07:28:02.463175,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_9-5-uniform.csv,10,6138.964534580277,6656.82,2025-03-18 09:19:00.244289,Tabu search with 2 original neighborhoods
+lim/800/LC1_8_10-5-uniform.csv,10,6004.382744110481,7142.57,2025-03-18 11:18:03.780240,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_1-5-uniform.csv,10,5788.853695754245,11289.76,2025-03-18 14:26:15.314612,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_2-5-uniform.csv,10,9034.981886752974,11463.83,2025-03-18 17:37:20.698108,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_3-5-uniform.csv,10,9298.777395321324,11362.95,2025-03-18 20:46:45.514327,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_4-5-uniform.csv,10,8939.543817199812,10789.85,2025-03-18 23:46:36.917944,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_5-5-uniform.csv,10,5681.400416496399,11494.18,2025-03-19 02:58:12.715499,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_6-5-uniform.csv,10,5957.661759527519,11135.11,2025-03-19 06:03:49.419060,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_7-5-uniform.csv,10,5781.755741064371,11049.62,2025-03-19 09:08:00.640552,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_8-5-uniform.csv,10,7465.298051367329,11653.91,2025-03-19 12:22:16.133037,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_9-5-uniform.csv,10,8432.724924573002,11596.34,2025-03-19 15:35:33.954332,Tabu search with 2 original neighborhoods
+lim/1000/LC1_10_10-5-uniform.csv,10,9239.590410878804,11387.27,2025-03-19 18:45:22.790325,Tabu search with 2 original neighborhoods
