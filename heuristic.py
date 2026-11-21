@@ -1234,12 +1234,17 @@ class TabuSearch:
 
     def _get_neighbors(self,graph, affected_add, affected_drop,affected_redistribute):
         neighbors = []
+        time_0 = time.time()
         neighbors += self._get_n_reroute_neighbors(
             graph, cfg.TABU_NUM_REROUTE_NEIGHBORS, affected_add, affected_drop)
+        time_1 = time.time()
         neighbors += self._get_n_reverse_neighbors(
             graph, cfg.TABU_NUM_REVERSE_NEIGHBORS, affected_add, affected_drop)
+        time_2 = time.time()
         neighbors += self._get_n_redistribute_neighbors(
             graph,cfg.TABU_NUM_REDISTRIBUTE_NEIGHBORS, affected_redistribute)
+        time_3 = time.time()
+        logging.info(f'get neighbors time:\n reroute {(time_1-time_0)/cfg.TABU_NUM_REROUTE_NEIGHBORS} \n reverse {(time_2-time_1)/cfg.TABU_NUM_REVERSE_NEIGHBORS} \n redistribute {(time_3-time_2)/cfg.TABU_NUM_REVERSE_NEIGHBORS}')
 
         return neighbors
 
@@ -1337,6 +1342,7 @@ class TabuSearch:
         Generate a new solution by redistributing the tasks in N_left to N_right
         using Alain's idea
         """
+        start_time = time.time()
         l, l_bar, l_star = Ls
         C_max = l[-1]
         sol_graph = deep_copy_graph(sol_graph)
@@ -1370,6 +1376,8 @@ class TabuSearch:
                 if new_C_max < C_max:
                     C_max = new_C_max
                     improved = True
+        end_time = time.time()
+        logging.info(f'Redistribute time {end_time - start_time}')
         return sol_graph
     
     def _build_f(self, sol_graph, N_left, N_right, pi_left, pi_right):
@@ -1465,6 +1473,7 @@ class TabuSearch:
         return result_graph
 
     def _get_n_redistribute_neighbors(self,graph, num_neighbors, affected_redistribute):
+        start_time = time.time()
         topo_order = list(nx.topological_sort(graph))
         z, w = self._get_related_times(graph, self.c_travel, self.c_operate) # z is L
         # calculate L, L_bar, L_star
@@ -1473,17 +1482,18 @@ class TabuSearch:
         L_star = self._get_longest_path(graph, self.c_travel, self.c_operate)
         Ls = (L, L_bar, L_star)
         total_nodes = len(topo_order)
-        cuts_after = np.random.default_rng().choice(range(2,total_nodes-2), size = num_neighbors, replace=False)
-        
+        # cuts_after = np.random.default_rng(cfg.RND_SEED).choice(range(2,total_nodes-2), size = num_neighbors, replace=False)
+        cuts_after = np.random.choice(range(2,total_nodes-2), size = num_neighbors, replace=False)
+
         neighbors = []
         for i in cuts_after:
             neighbor = self._dedicate_redistribute(graph,topo_order, i, Ls)
             neighbors.append(neighbor)
             affected_redistribute[neighbor] = i
-            
         return neighbors
 
     def _get_n_reverse_neighbors(self, graph, max_neighbors, affected_add, affected_drop, on_critical = cfg.TABU_REVERSE_ON_CRITICAL):
+        start_time = time.time()
         neighbors = []
         # ni_descendants is a dictionary of descendants that are not neighbor of each node in nx Digraph
         ni_descendants = {}
@@ -1512,7 +1522,8 @@ class TabuSearch:
                 affected_add[G_p] = [edge]
                 affected_drop[G_p] = [(edge[1],edge[0])]
                 num_neighbors += 1
-
+        
+        end_time = time.time()
         return neighbors
 
     def _get_u(self, edge, graph, related_times):
@@ -1613,6 +1624,7 @@ class TabuSearch:
         return chosen_preds
 
     def _reverse(self,edge, graph, related_times):
+        start_time = time.time()
         u_a = self._get_u(edge, graph, related_times)
         v_b = self._get_v(edge, graph, related_times)
         graph_prime = deep_copy_graph(graph)
@@ -1646,7 +1658,8 @@ class TabuSearch:
             weight_to_remove -= weight_bv
         graph_prime.remove_edge(a,b)
         graph_prime.add_edge(b,a, weight = reverse_weight)
-
+        end_time = time.time()
+        # logging.info(f'reverse time {end_time - start_time}')
         return graph_prime
     
     def _reversable(self, edge, ni_descendants):
@@ -1711,7 +1724,7 @@ class TabuSearch:
             graph[c][b]['weight'] += reroute_amount
         else:
             graph.add_edge(c,b,weight = reroute_amount)
-
+        end_time = time.time()
         return graph
 
     def _get_n_reroute_neighbors(
@@ -1748,7 +1761,6 @@ class TabuSearch:
                     affected_add[G_p] = [edge1, edge2]
                     affected_drop[G_p] = [(edge1[0],edge2[1]),(edge2[0],edge1[1])]
                     num_neighbors += 1
-        
         return neighbors
 
     def _path_to_edges(self, path : list):
@@ -2127,6 +2139,10 @@ class TabuSearch:
         i_no_update = 0
         best_fitnesses = [best_solution_fitness]
         cur_fitnesses = [best_solution_fitness]
+
+        num_improve = {0:0, 1:0} # 0 is for reroute or reverse, 1 is for redistribute, number of times the best solution is improved by each neighborhood
+        total_improve = {0:0, 1:0} # total improve of fitness by each neighborhood, used to calculate the average improve of each neighborhood when it improves the best solution
+
         for i in range(max_iters):
             # logging.info(f'Iteration {i} started')
             affected_add = {} #key : graph, value:edges to add to tl_add
@@ -2134,7 +2150,7 @@ class TabuSearch:
             affected_redistribute = {}
             neighbors = self._get_neighbors(lastest_best_solution, affected_add, affected_drop, affected_redistribute)
             best_neighbor = None
-            best_neighbor_0 = None #save best neighbor in reroute or reverse neighborhood
+            best_neighbor_0 = None # save best neighbor in reroute or reverse neighborhood
             best_neighbor_fitness = np.inf
             best_neighbor_fitness_0 = np.inf
             chosen_neigborhood = 0 # 0 is for reroute or reverse, 1 is for redistribute
@@ -2173,6 +2189,9 @@ class TabuSearch:
                     # logging.info("Changed to best reroute or reverse neighbor")
 
             if best_neighbor_fitness < best_solution_fitness:
+                num_improve[chosen_neigborhood] += 1
+                total_improve[chosen_neigborhood] += best_solution_fitness - best_neighbor_fitness
+
                 best_solution = best_neighbor
                 best_solution_fitness = best_neighbor_fitness
                 logging.info(f'Best fitness updated: {best_solution_fitness}, chosen neighborhood: {chosen_neigborhood}')
@@ -2228,8 +2247,9 @@ class TabuSearch:
         
         self.best_fitnesses = best_fitnesses
         self.cur_fitnesses = cur_fitnesses
+        avg_improve = {0: total_improve[0]/num_improve[0] if num_improve[0]>0 else 0, 1: total_improve[1]/num_improve[1] if num_improve[1]>0 else 0}
         logging.info(f'Best solution found: {best_solution_fitness}')
-        return best_solution, best_solution_fitness
+        return best_solution, best_solution_fitness, num_improve, avg_improve
     
 
 class GreedyInsert:

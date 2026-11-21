@@ -8,7 +8,7 @@ from problem_variables import Task, Node, Raw
 
 seed_num =  cfg.RND_SEED
 rnd = np.random
-rnd.seed(seed_num)
+# rnd.seed(seed_num)
 
 def _get_data_from_csv(path, depot_as_task: True):
     df = pd.read_csv(path)
